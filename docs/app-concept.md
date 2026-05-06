@@ -284,7 +284,10 @@ Deferred to v0.2:
 
 ## Open questions for the tech spike
 
-1. `msgraph-sdk-python` vs raw `httpx` calls? SDK is heavy; raw is ~6 endpoints we actually need.
-2. Token storage: keyring (cross-platform but requires DBus / Secret Service on Linux) vs encrypted file with a passphrase. Keyring assumes a desktop session — may not work on truly headless servers without `gnome-keyring-daemon` running.
-3. Working-directory cleanup policy on crash: TTL-based, or explicit reconciliation against `sp_status`?
-4. How big can a single edit be before we need chunked upload (Graph's resumable upload session)? Default cutoff is 4 MB.
+> **Resolved 2026-05-06**: `msgraph-sdk-python` vs raw `httpx` — raw `httpx`. See [docs/spikes/2026-05-06-graph-sdk-vs-httpx.md](spikes/2026-05-06-graph-sdk-vs-httpx.md). Footprint difference is ~92× (220 MB → 2.4 MB), the SDK fights our keyring-owned auth contract, and the 6 endpoints we touch don't justify a generic typed client.
+
+### Still open
+
+1. Token storage: keyring (cross-platform but requires DBus / Secret Service on Linux) vs encrypted file with a passphrase. Keyring assumes a desktop session — may not work on truly headless servers without `gnome-keyring-daemon` running. Tracked as [#9](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/9).
+2. Working-directory cleanup policy on crash: TTL-based, or explicit reconciliation against `sp_status`? Tracked as [#23](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/23).
+3. How big can a single edit be before we need chunked upload (Graph's resumable upload session)? Default cutoff is 4 MB. Tracked as [#24](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/24).
