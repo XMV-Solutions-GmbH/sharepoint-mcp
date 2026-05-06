@@ -185,12 +185,21 @@ For projects where AI is the primary developer, the ticket sequence is:
 
 The harness-setup ticket is the gate. If the gate isn't green, feature work cannot start — because feature work without harness is feature work without verification, and we end up shipping code that compiles and passes mocks but breaks against the real API on first contact.
 
+### Issue-spawn discipline
+
+When deriving an issue backlog from a concept document for an AI-driven project:
+
+- **Spawn one ticket per test layer.** Unit, integration, and harness each get their own issue. Never roll harness into integration "to keep the count down" — it loses the property that the harness layer is a hard gate, and it lets feature work proceed without real-system verification.
+- **Fix the concept before spawning issues.** If the concept's Testability section is missing or names fewer than three layers, that is a concept-doc defect. Patch the concept first; only then derive the backlog. Otherwise the backlog inherits the concept's blind spot — which is exactly the failure mode this section exists to prevent.
+- **Mark the harness-setup ticket as the gate** in whatever your tracker calls dependencies. Feature tickets must list it under "Depends on". The visual reminder keeps the rule alive after the initial planning session.
+
 ### Anti-patterns
 
 - Running tests **only** from CI. The AI gets no feedback loop. Provide local harness access on the agent's machine.
 - Treating "integration" and "harness" as the same thing. They aren't. Mocks-at-boundary integration tests are valuable but they validate our assumptions, not the external API. Both layers exist for different reasons; you need both.
 - Letting feature tickets land before the harness layer works. The first time the code talks to the real system is the worst time to discover the auth flow is broken or the scope is wrong.
 - Using a powerful test account "because it's faster to set up." The harness account is least-privilege scoped to the sandbox, full stop. A leaked admin token from the agent's machine is not an acceptable failure mode.
+- Generating an issue backlog from a concept that has no Testability section. The missing section is the defect; spawning issues first only buries it.
 
 ---
 
