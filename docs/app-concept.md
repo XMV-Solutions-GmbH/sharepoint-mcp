@@ -123,20 +123,20 @@ One MCP instance per SharePoint tenant. The consuming repo's `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "sharepoint-anqer": {
+    "sharepoint-acme": {
       "command": "uvx",
       "args": ["sharepoint-mcp"],
       "env": {
         "SP_TENANT_ID": "<tenant-id>",
         "SP_CLIENT_ID": "<app-registration-id>",
-        "SP_PROFILE": "anqer"
+        "SP_PROFILE": "acme"
       }
     }
   }
 }
 ```
 
-Token caches and working directories are namespaced by `SP_PROFILE`. A second customer = a second `mcpServers` entry with its own profile. Tools appear in the agent as `mcp__sharepoint-anqer__sp_search` etc.
+Token caches and working directories are namespaced by `SP_PROFILE`. A second customer = a second `mcpServers` entry with its own profile. Tools appear in the agent as `mcp__sharepoint-acme__sp_search` etc.
 
 ---
 
