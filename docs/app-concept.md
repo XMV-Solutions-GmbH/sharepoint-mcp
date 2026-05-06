@@ -284,9 +284,10 @@ Deferred to v0.2:
 
 ## Open questions for the tech spike
 
-> **Resolved 2026-05-06**: `msgraph-sdk-python` vs raw `httpx` — raw `httpx`. See [docs/spikes/2026-05-06-graph-sdk-vs-httpx.md](spikes/2026-05-06-graph-sdk-vs-httpx.md). Footprint difference is ~92× (220 MB → 2.4 MB), the SDK fights our keyring-owned auth contract, and the 6 endpoints we touch don't justify a generic typed client.
-
-> **Resolved 2026-05-06**: token storage on headless Linux — **dual backend**: `keyring` when a real backend is detected, `cryptography.fernet`-encrypted file when not (passphrase from `SP_TOKEN_PASSPHRASE`). See [docs/spikes/2026-05-06-keyring-vs-encrypted-file.md](spikes/2026-05-06-keyring-vs-encrypted-file.md). Auto-detect at first use; `SP_TOKEN_STORE=keyring|file` to override. No plaintext-on-disk path under any circumstance.
+> **Resolved 2026-05-06:**
+>
+> - `msgraph-sdk-python` vs raw `httpx` — raw `httpx`. See [docs/spikes/2026-05-06-graph-sdk-vs-httpx.md](spikes/2026-05-06-graph-sdk-vs-httpx.md). Footprint difference is ~92× (220 MB → 2.4 MB), the SDK fights our keyring-owned auth contract, and the 6 endpoints we touch don't justify a generic typed client.
+> - Token storage on headless Linux — **dual backend**: `keyring` when a real backend is detected, `cryptography.fernet`-encrypted file when not (passphrase from `SP_TOKEN_PASSPHRASE`). See [docs/spikes/2026-05-06-keyring-vs-encrypted-file.md](spikes/2026-05-06-keyring-vs-encrypted-file.md). Auto-detect at first use; `SP_TOKEN_STORE=keyring|file` to override. No plaintext-on-disk path under any circumstance.
 
 ### Still open
 
