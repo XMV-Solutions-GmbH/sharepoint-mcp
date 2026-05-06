@@ -36,6 +36,8 @@ classifiers = [
 dependencies = [
     "mcp>=1.2",
     "httpx>=0.28",
+    "keyring>=25",
+    "cryptography>=42",
 ]
 
 [project.urls]
@@ -96,6 +98,8 @@ files = ["src/sharepoint_mcp", "tests"]
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
+disallow_untyped_calls = false  # keyring + cryptography lack type stubs; tests
+                                # use them directly to construct fake backends.
 
 [tool.pytest.ini_options]
 minversion = "8.0"
