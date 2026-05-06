@@ -105,20 +105,50 @@ Every tool maps to one or two Microsoft Graph calls. No clever caching beyond wh
 
 **OAuth 2.0 Device Code Flow** for interactive auth on headless Linux boxes:
 
-1. First run prints a device code and verification URL.
-2. User opens URL on phone or laptop, enters code, signs in.
-3. Token is cached locally via OS keyring (`keyring` Python lib) — no plaintext on disk.
+1. First run surfaces a user code and verification URL to the calling MCP client (which displays them to the human).
+2. User opens URL on phone or laptop, enters code, signs in with their M365 account.
+3. Server polls Microsoft Identity until consent is granted; on success, access + refresh token are cached locally via OS keyring (`keyring` Python lib) — no plaintext on disk.
 4. Refresh token used silently afterwards; re-prompt on full expiry (60–90 days).
 
-Per-tenant config holds: `tenant_id`, `client_id` (a public-client app registration in that tenant), required scopes (`Files.ReadWrite.All`, `Sites.ReadWrite.All`).
+### Default client: XMV-hosted multi-tenant app
 
-Service-principal / client-credentials flow as a future extension for unattended automation, but **MVP is interactive user auth** — every action is attributed to the signed-in user, which is what compliance wants.
+The package ships with a baked-in `client_id` for an Entra app registration owned by **XMV Solutions GmbH** — multi-tenant, public client, delegated scopes only (`Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`). End users install via `uvx sharepoint-mcp` and sign in immediately. No tenant-specific app registration required; no IT-admin involvement on the consumer side.
+
+This mirrors the pattern used by Azure CLI, GitHub CLI, and similar OSS tools: the publisher hosts a single multi-tenant public-client app registration; the app ID is not a secret. End users sign in with their own M365 credentials, every action is attributed to the human in SharePoint's audit log.
+
+Tenant routing happens via the `common` / `organizations` endpoint at sign-in — the user's tenant is derived from the account they pick, no `SP_TENANT_ID` configuration needed by default.
+
+### BYO override (enterprise / restrictive tenants)
+
+Tenants with strict app-allowlisting policies can override defaults via env:
+
+- `SP_TENANT_ID=<guid>` — pin sign-in to a specific tenant instead of `common`.
+- `SP_CLIENT_ID=<guid>` — use the organization's own app registration instead of the XMV default.
+
+If neither is set, `uvx sharepoint-mcp` is zero-config.
+
+### Service-principal auth (deferred)
+
+Client-credentials flow for unattended automation is out of scope for v0.1. MVP is interactive user auth — every action is attributed to the signed-in user, which is what compliance wants.
 
 ---
 
-## Multi-tenant pattern
+## Multi-profile pattern
 
-One MCP instance per SharePoint tenant. The consuming repo's `.mcp.json`:
+For zero-config use, one MCP entry with no env vars at all is enough:
+
+```json
+{
+  "mcpServers": {
+    "sharepoint": {
+      "command": "uvx",
+      "args": ["sharepoint-mcp"]
+    }
+  }
+}
+```
+
+When working across multiple SharePoint tenants from the same machine (consultancy workflow with several customers), use distinct `SP_PROFILE` values to keep token caches and working directories separated:
 
 ```json
 {
@@ -126,17 +156,18 @@ One MCP instance per SharePoint tenant. The consuming repo's `.mcp.json`:
     "sharepoint-acme": {
       "command": "uvx",
       "args": ["sharepoint-mcp"],
-      "env": {
-        "SP_TENANT_ID": "<tenant-id>",
-        "SP_CLIENT_ID": "<app-registration-id>",
-        "SP_PROFILE": "acme"
-      }
+      "env": { "SP_PROFILE": "acme" }
+    },
+    "sharepoint-globex": {
+      "command": "uvx",
+      "args": ["sharepoint-mcp"],
+      "env": { "SP_PROFILE": "globex", "SP_TENANT_ID": "<guid>" }
     }
   }
 }
 ```
 
-Token caches and working directories are namespaced by `SP_PROFILE`. A second customer = a second `mcpServers` entry with its own profile. Tools appear in the agent as `mcp__sharepoint-acme__sp_search` etc.
+Token caches and working directories are namespaced by `SP_PROFILE` (default: `default`). Each profile holds its own refresh token; a second customer means a second `mcpServers` entry. Tools appear in the agent as `mcp__sharepoint-acme__sp_search` etc.
 
 ---
 
