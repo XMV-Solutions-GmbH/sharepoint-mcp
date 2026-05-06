@@ -114,6 +114,15 @@ Every tool maps to one or two Microsoft Graph calls. No clever caching beyond wh
 
 The package ships with a baked-in `client_id` for an Entra app registration owned by **XMV Solutions GmbH** — multi-tenant, public client, delegated scopes only (`Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`). End users install via `uvx sharepoint-mcp` and sign in immediately. No tenant-specific app registration required; no IT-admin involvement on the consumer side.
 
+Registered in XMV's Entra tenant on 2026-05-06:
+
+- **`client_id`** (default `SP_CLIENT_ID`): `cb7cf68d-90d5-4841-90a7-de3a40be280b`
+- **Display name**: `sharepoint-mcp`
+- **Sign-in audience**: `AzureADMultipleOrgs`
+- **Homepage**: <https://github.com/XMV-Solutions-GmbH/sharepoint-mcp>
+- **Privacy URL**: <https://xmv.de/oss/sharepoint-mcp/privacy>
+- **Terms URL**: <https://xmv.de/oss/sharepoint-mcp/terms>
+
 This mirrors the pattern used by Azure CLI, GitHub CLI, and similar OSS tools: the publisher hosts a single multi-tenant public-client app registration; the app ID is not a secret. End users sign in with their own M365 credentials, every action is attributed to the human in SharePoint's audit log.
 
 Tenant routing happens via the `common` / `organizations` endpoint at sign-in — the user's tenant is derived from the account they pick, no `SP_TENANT_ID` configuration needed by default.
