@@ -34,7 +34,15 @@ run_layer() {
         return 1
     fi
     echo ">>> uv run pytest tests/${layer}"
-    uv run pytest -m "${layer}" "${path}"
+    local rc=0
+    uv run pytest -m "${layer}" "${path}" || rc=$?
+    # pytest exit code 5 = "no tests collected"; treat as success for
+    # layers that haven't been populated yet (early-development reality).
+    case "${rc}" in
+        0) return 0 ;;
+        5) echo "    (no ${layer} tests collected — empty layer, treating as ok)"; return 0 ;;
+        *) return "${rc}" ;;
+    esac
 }
 
 case "${target}" in
