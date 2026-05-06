@@ -113,14 +113,46 @@ Skipping QA is acceptable only with explicit, recorded human override (e.g. "shi
 
 ## 5. AI as developer (vibe coding)
 
-When an AI agent is the primary developer ("vibe coding"), the project must be set up so the agent can **actually verify what it builds**. The relevant industry term is **test harness**: the surrounding environment that makes tests runnable.
+When an AI agent is the primary developer ("vibe coding"), the project must be set up so the agent can **actually verify what it builds**. This requires being precise about what kind of test verifies what — three layers, each with a different purpose, and the third is the one most often neglected.
+
+### The three test layers
+
+| Layer | What it verifies | External world | Speed |
+|---|---|---|---|
+| **Unit tests** | Pure-function / method-level logic | All externals mocked or stubbed | sub-second |
+| **Integration tests** | Component contracts **within our own codebase** — handlers, modules, internal interfaces | **Mocks at the system boundary are acceptable** (e.g., a mock HTTP server standing in for an external API) | seconds |
+| **Harness tests** | Our code against the **real external system**, in a **dedicated sandbox that is configured the way production is** | **Real** — real API endpoints, real auth flow, real tokens, real network | seconds to minutes |
+
+These three are **not interchangeable**, and harness is **not** "an integration test that happens to use the real network." The distinction is load-bearing — see below.
+
+### Why harness is its own category
+
+Mocks codify **our assumptions** about an external API. Harness exercises **the API itself**.
+
+Without a harness layer, the AI agent codes against its own mental model of an API — and has no feedback loop to discover when that model is wrong:
+
+- when a permission scope means something different from what the docs imply,
+- when the external API ships a behavioural change between SDK versions,
+- when an edge-case response shape we never anticipated turns out to be the common case,
+- when "it works in the SDK README" doesn't hold for our specific tenant/account/configuration.
+
+**Harness is the AI-development enabler.** It is what lets the agent self-verify against reality, not just against its own assumptions. Unit + integration alone leave the agent confident in code that has never met the world it integrates with.
+
+### What a harness sandbox is
+
+A harness sandbox is **a real, dedicated test environment that mirrors production configuration as closely as possible**, accessed by **a real, dedicated test account** with **least-privilege scoping to the sandbox**.
+
+- Real test tenant / sandbox account / isolated namespace (not a mock, not a stub server).
+- Real OAuth / API-key / kubeconfig flow to authenticate (the agent goes through the same auth pipeline the production user would).
+- The account is **scoped to the sandbox** — it must not have access to anything outside the test environment. Compromised harness credentials should not put production data at risk.
+- The sandbox is configured the same way production would be (same library settings, same checkout policies, same cluster shape — whatever the relevant invariants are).
 
 ### Required from day one
 
-The agent's working machine has all credentials and tools it needs to test against the real target environment:
+The agent's working machine has all credentials and tools it needs to test against the harness sandbox:
 
-- Credentials for any external service the project integrates with (API tokens, OAuth client IDs, test-account logins).
-- A dedicated, throw-away test environment (test tenant, sandbox account, isolated namespace) so live data isn't touched.
+- Credentials for the harness account (refresh token, OAuth-cached token, service-account key, kubeconfig). Cached locally on the agent's machine — **not only in CI**.
+- The same credentials available to CI as a secret, so harness tests can run on PRs after they pass locally.
 - Repo write access so the agent can commit.
 - Tooling installed (via a project setup script — see § 8).
 
@@ -128,18 +160,37 @@ Tests are runnable from the agent's machine, not exclusively from CI. CI is for 
 
 ### Required in every App Concept
 
-Every project's App Concept (or equivalent product/architecture document) must include a **Testability** section that describes:
+Every project's App Concept (or equivalent product/architecture document) must include a **Testability** section that names all three layers explicitly:
 
-- What environments exist (local, staging, production / public release) and what each is for.
-- Where the AI runs its tests (typically a dedicated test environment).
-- How the AI authenticates against that environment.
+- **Unit**: where unit tests live, what's mocked.
+- **Integration**: which boundary mocks exist, what internal contracts are tested.
+- **Harness**: what the sandbox is, who the test account is, how the agent authenticates against it, what the least-privilege scope is, what end-to-end paths are validated.
+
+Plus the operational answers per § 5:
+
+- What environments exist (local, sandbox-harness, staging, production) and what each is for.
+- Where the AI runs each layer of tests (typically: unit + integration locally and in CI, harness from the agent's machine + CI on PRs).
 - What's tested automatically vs. what requires human eyes.
 
-Without that, vibe coding degrades to "the AI writes plausible-looking code that nobody actually verifies".
+Without all of this, vibe coding degrades to "the AI writes plausible-looking code that nobody actually verifies against reality."
 
-### Anti-pattern
+### Required ticket order
 
-Running tests **only** from CI (e.g. GitHub Actions) is wrong for projects where the agent is expected to iterate. The AI gets no feedback loop and can't iterate. Provide local test access on the agent's machine and expect tests to run there.
+For projects where AI is the primary developer, the ticket sequence is:
+
+1. **Package / repo skeleton.**
+2. **Harness sandbox setup** — provision the sandbox, create the least-privilege test account, install credentials on the agent's machine, write **one** harness test that proves end-to-end auth works against the real system. **No feature tickets enter "Doing" before this is green.**
+3. **Unit + integration test scaffolding** — pytest/vitest/etc. structure, the first failing test of each kind.
+4. **Feature tickets** — each ships a harness test, or explicitly justifies why unit/integration suffices for that piece.
+
+The harness-setup ticket is the gate. If the gate isn't green, feature work cannot start — because feature work without harness is feature work without verification, and we end up shipping code that compiles and passes mocks but breaks against the real API on first contact.
+
+### Anti-patterns
+
+- Running tests **only** from CI. The AI gets no feedback loop. Provide local harness access on the agent's machine.
+- Treating "integration" and "harness" as the same thing. They aren't. Mocks-at-boundary integration tests are valuable but they validate our assumptions, not the external API. Both layers exist for different reasons; you need both.
+- Letting feature tickets land before the harness layer works. The first time the code talks to the real system is the worst time to discover the auth flow is broken or the scope is wrong.
+- Using a powerful test account "because it's faster to set up." The harness account is least-privilege scoped to the sandbox, full stop. A leaked admin token from the agent's machine is not an acceptable failure mode.
 
 ---
 

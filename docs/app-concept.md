@@ -198,17 +198,75 @@ Token caches and working directories are namespaced by `SP_PROFILE` (default: `d
 
 ---
 
+## Testability
+
+Per `ENGINEERING_PRINCIPLES.md` § 5, we maintain **three distinct test layers**, and the harness layer is the gate that must be green before any feature ticket enters "Doing".
+
+### Unit tests (`tests/unit/`)
+
+Pure-function logic in isolation. The Microsoft Graph client and the keyring are both **mocked**. No network, no credentials, sub-second per test. Run on every save during development, on every PR in CI.
+
+- Tool argument parsing and validation.
+- Token-cache logic with a mocked keyring backend.
+- Path resolution from site-relative paths to drive/item IDs (logic, not the actual Graph call).
+- Error-mapping (Graph error codes → MCP tool errors with the right shape).
+
+### Integration tests (`tests/integration/`)
+
+How our internal modules fit together. Mocks **at the system boundary** are acceptable: a mock HTTP server (e.g., `respx` or a small `httpx` mock) standing in for `graph.microsoft.com`. Deterministic, runnable in CI without any real Microsoft credentials.
+
+- The MCP tool layer correctly routes calls to the auth + Graph-client layers.
+- ETag round-trip (`sp_open` → `sp_save`) works against a recorded fixture.
+- Crash-recovery: `sp_status` reconciles registry against a mock-Graph-state.
+- Read-only mode: when `SP_ALLOW_WRITES` is unset, write tools are not registered.
+
+### Harness tests (`tests/harness/`) — the AI-development enabler
+
+**Real connection to a real SharePoint sandbox**, configured the same way an ISMS-relevant production library would be (checkout-required, retention enabled, audit-on). Real OAuth Device Code flow against Microsoft Identity. Real account, **least-privilege scoped to a single test site**.
+
+- **Sandbox**: a dedicated SharePoint site `sharepoint-mcp-harness` in the XMV tenant (or a dedicated dev tenant, TBD).
+- **Test account**: a service-purpose user in XMV's tenant — name TBD — granted **only** `Edit` permission on the harness site, **no** access to other XMV resources. A leaked harness refresh token must not put any production data at risk.
+- **Initial setup**: the human admin (David) walks the test account through a one-time Device Code login on the agent's working machine. The resulting refresh token is cached in the agent's OS keyring under profile `harness`. The same refresh token is also stored as a GitHub Actions secret for CI.
+- **What's covered**:
+  - End-to-end auth: Device Code → keyring → refresh-token-loop survives a fresh process start.
+  - Each tool (`sp_search`, `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_release`, `sp_status`) hit at least once against the live API.
+  - Lock semantics: `sp_open` of an already-checked-out file fails with the right error; concurrent `sp_open` attempts are exclusive.
+  - ETag stale-write detection: edit-and-save after another process has changed the same file → fails as expected.
+  - Audit-log attribution: the test-account user appears as actor in the SharePoint audit log for each write.
+- **Run sites**: from the agent's working machine on every iteration; from CI on every PR (using the secret-stored refresh token).
+
+### Test-environment hierarchy
+
+| Environment | Purpose | Auth |
+|---|---|---|
+| Local (developer machine) | Unit + integration during edit-iteration | None / mocked |
+| Local + harness sandbox | Harness during iteration on tool-level changes | Device Code → keyring (one-time human login) |
+| CI on PR | Unit + integration + harness | Refresh token from GitHub Secrets |
+| First-user PyPI install | Production for end users; not under our test control | Their own M365 account, their own tenant |
+
+There is no "staging" environment in the cluster sense — the harness sandbox **is** the staging-equivalent for this project. The next step beyond harness is end-user installation.
+
+### What is NOT in scope of the test suite
+
+- Real-world tenants other than the harness sandbox. We don't run automated tests against XMV's production data, customer tenants, or any data we don't fully own.
+- Microsoft itself (uptime, scope-policy changes) — we observe these through harness failures and respond with code/doc fixes, not by trying to mock around them.
+- Cross-MCP-client compatibility (Claude Desktop, other MCP clients) — the protocol is the contract; we test against `mcp` Python SDK conformance, not specific clients.
+
+---
+
 ## MVP scope (v0.1)
 
 - Tools: `sp_search`, `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_release`, `sp_status`.
 - Single-tenant focused; multi-tenant via launching multiple processes (no in-process tenant switching).
 - Device code auth, keyring token cache.
 - Python 3.11+, packaged for `uvx`/`pipx` install.
-- Tests: integration tests against a dedicated test SharePoint site (provided via env vars in CI).
+- Test layers: unit + integration locally and in CI; **harness tests against the dedicated XMV sandbox site** with a least-privilege test user (see Testability section above).
+- Read-only by default; writes opt-in via `SP_ALLOW_WRITES=true`.
 
 Deferred to v0.2:
 
 - `sp_history`, `sp_get_version`.
+- `sp_publish` (upload a new file from local) — covers the "draft + promote" use case from § Core use cases. Not in v0.1 because it is independent of the checkout/checkin chain that v0.1 focuses on.
 - Service-principal auth.
 - Bulk operations (`sp_save_many`).
 - OneNote / Excel-cell-level tools (likely separate MCPs).
