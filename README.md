@@ -1,166 +1,100 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-<!-- test: verify branch protection -->
-# OSS Project Template
+
+# sharepoint-mcp
 
 [![Licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/XMV-Solutions-GmbH/oss-project-template/actions/workflows/ci.yml/badge.svg)](https://github.com/XMV-Solutions-GmbH/oss-project-template/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/XMV-Solutions-GmbH/oss-project-template/badge.svg?branch=main)](https://coveralls.io/github/XMV-Solutions-GmbH/oss-project-template?branch=main)
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/XMV-Solutions-GmbH/oss-project-template/issues)
+[![CI](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues)
 
-🚀 **Production-ready template for AI-assisted open source development.**
+A **Model Context Protocol** server for SharePoint document libraries. Lets AI coding agents read and edit files on SharePoint **without breaking version history, audit trail, or locking semantics** — by wrapping Microsoft Graph's native checkout / edit / checkin model as MCP tools.
 
-This template provides everything you need to start a professional open source project with optimised support for AI-assisted development using GitHub Copilot or similar tools.
-
----
-
-## ✨ Features
-
-- **AI-First Development** — Copilot instructions optimised for autonomous quality assurance
-- **Test Harness Patterns** — Tech-stack agnostic testing strategies for AI verification
-- **GitHub Automation** — Branch protection, team assignment, and CI/CD workflows
-- **Configurable Setup** — Single `repo.ini` file for project-specific customisation
-- **Dual Licence** — MIT OR Apache-2.0 for maximum compatibility
+> **Status:** pre-alpha. Concept frozen, MVP in planning. See [docs/app-concept.md](docs/app-concept.md) and the [issue tracker](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues).
 
 ---
 
-## 🚀 Quick Start
+## Why
 
-### 1. Create Your Repository
+The standard alternatives — `rclone`, WebDAV mounts, the Anthropic-hosted M365 MCP — either skip SharePoint's checkout/checkin model entirely or expose it only for search and read. That's not acceptable for documents that live under retention or audit constraints (ISMS records, controlled procedures, contract templates). `sharepoint-mcp` keeps the audit trail intact: every edit goes through an explicit `open` → `save` (or `release`) cycle, attributed to the signed-in user, with a commit message and an honest version bump.
 
-Use this template to create a new repository:
-
-```bash
-# Via GitHub CLI
-gh repo create YOUR-ORG/YOUR-REPO --template XMV-Solutions-GmbH/oss-project-template --public
-
-# Or click "Use this template" on GitHub
-```
-
-### 2. Configure Your Project
-
-Edit `repo.ini` with your project details:
-
-```ini
-ORG="YOUR-ORG"
-REPO="YOUR-REPO"
-PROJECT_NAME="Your Project Name"
-PROJECT_DESCRIPTION="Your project description"
-```
-
-### 3. Run Setup Scripts
-
-```bash
-# Assign repository to team
-./.github/gh-scripts/assign-repo-to-team.sh
-
-# Set up branch protection
-./.github/gh-scripts/setup-branch-protection.sh
-```
-
-### 4. Create Project Documentation
-
-Before writing any code, create:
-
-- `docs/app-concept.md` — Project vision and architecture
-- `docs/todo.md` — Prioritised task list
-
-See templates in [docs/](docs/) directory.
+Full rationale, tool surface, auth model, and conflict semantics in [docs/app-concept.md](docs/app-concept.md).
 
 ---
 
-## 📁 Repository Structure
+## MCP tools (planned)
 
 ```text
-.
-├── .github/
-│   ├── copilot-instructions.md    # AI coding guidelines
-│   ├── CODEOWNERS                 # Code review assignment
-│   ├── gh-scripts/                # Repository setup scripts
-│   │   ├── assign-repo-to-team.sh
-│   │   ├── setup-branch-protection.sh
-│   │   └── ...
-│   └── workflows/                 # CI/CD pipelines
-├── docs/
-│   ├── app-concept.md             # Project concept template
-│   ├── howto-oss.md               # OSS setup guide
-│   ├── testconcept.md             # Testing strategy
-│   └── todo.md                    # Task tracking
-├── tests/
-│   └── run_tests.sh               # Test runner
-├── CHANGELOG.md                   # Version history
-├── CODE_OF_CONDUCT.md             # Community standards
-├── CONTRIBUTING.md                # Contribution guidelines
-├── LICENSE                        # MIT licence
-├── LICENSE-APACHE                 # Apache 2.0 licence
-├── LICENSE-MIT                    # MIT licence
-├── README.md                      # This file
-├── repo.ini                       # Project configuration
-└── SECURITY.md                    # Security policy
+sp_search    sp_list      sp_read      sp_open
+sp_save      sp_release   sp_status    sp_history    sp_get_version
 ```
 
----
-
-## 🧪 AI-Assisted Development
-
-This template is designed for **AI-first development**. The key principle:
-
-> **Test harness before implementation.**
-
-Every project must have a local test harness that:
-
-1. Runs entirely on the command line
-2. Executes without external dependencies (mocks where necessary)
-3. Mirrors production as closely as possible
-4. Provides clear pass/fail output
-
-This enables AI agents to autonomously verify their implementations.
-
-See [docs/testconcept.md](docs/testconcept.md) for detailed testing strategies.
+Each maps to one or two Microsoft Graph calls. No clever caching beyond what Graph provides.
 
 ---
 
-## 📚 Documentation
+## Quickstart (planned, post-MVP)
+
+Once the first release is on PyPI:
+
+```bash
+# Install via uvx (no global Python install required)
+uvx sharepoint-mcp --help
+```
+
+Wire it into your MCP client (e.g. Claude Code) via `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sharepoint": {
+      "command": "uvx",
+      "args": ["sharepoint-mcp"],
+      "env": {
+        "SP_TENANT_ID": "<tenant-id>",
+        "SP_CLIENT_ID": "<app-registration-id>",
+        "SP_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+First run prompts a Device Code login; subsequent runs use a cached refresh token.
+
+---
+
+## Documentation
 
 | Document | Description |
 | -------- | ----------- |
-| [How-To: OSS Setup](docs/howto-oss.md) | Complete guide to setting up OSS projects |
-| [Test Concept](docs/testconcept.md) | Testing strategies for AI-assisted development |
-| [Contributing](CONTRIBUTING.md) | How to contribute to this project |
+| [App Concept](docs/app-concept.md) | Vision, MVP scope, MCP tool surface, auth, conflict model |
+| [Test Concept](docs/testconcept.md) | Test-harness strategy for AI-assisted development |
+| [Engineering Principles](ENGINEERING_PRINCIPLES.md) | Project-agnostic baseline (language, status workflow, source control, licensing) |
+| [Project Conventions](CLAUDE.md) | sharepoint-mcp-specific overrides on top of the principles |
+| [Contributing](CONTRIBUTING.md) | How to contribute |
 | [Security Policy](SECURITY.md) | How to report vulnerabilities |
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) first.
-
-### Quick Contribution Guide
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes with tests
-4. Commit: `git commit -m 'feat: add amazing feature'`
-5. Push: `git push origin feature/amazing-feature`
-6. Open a Pull Request
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) first.
 
 ---
 
-## 📄 Licence
+## Licence
 
-Licensed under either of:
+Dual-licensed under either of:
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
-### Contribution
-
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
 ---
 
-## 📬 Contact
+## Contact
 
 - **Organisation**: XMV Solutions GmbH
 - **Email**: <oss@xmv.de>

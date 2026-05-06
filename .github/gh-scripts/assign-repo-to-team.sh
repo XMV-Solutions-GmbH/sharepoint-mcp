@@ -33,7 +33,7 @@ fi
 # Configuration (override via env)
 # ---------------------------
 ORG="${ORG:-XMV-Solutions-GmbH}"
-REPO="${REPO:-oss-project-template}"
+REPO="${REPO:-sharepoint-mcp}"
 TEAM_SLUG="${TEAM_SLUG:-open-source}"
 
 # ---------------------------

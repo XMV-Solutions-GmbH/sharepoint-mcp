@@ -23,11 +23,8 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 
 ```bash
 # Clone the repository
-git clone https://github.com/XMV-Solutions-GmbH/oss-project-template.git
-cd oss-project-template
-
-# Configure your project
-# Edit repo.ini with your project details
+git clone https://github.com/XMV-Solutions-GmbH/sharepoint-mcp.git
+cd sharepoint-mcp
 ```
 
 ---
@@ -72,7 +69,7 @@ Every source file MUST start with an SPDX licence identifier:
 ### 1. Fork the Repository
 
 ```bash
-gh repo fork XMV-Solutions-GmbH/oss-project-template
+gh repo fork XMV-Solutions-GmbH/sharepoint-mcp
 ```
 
 ### 2. Create a Feature Branch

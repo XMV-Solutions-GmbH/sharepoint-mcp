@@ -12,4 +12,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial project structure
 
-[Unreleased]: https://github.com/XMV-Solutions-GmbH/oss-template-repo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/compare/v0.1.0...HEAD
