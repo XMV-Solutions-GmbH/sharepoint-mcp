@@ -28,6 +28,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from sharepoint_mcp.tools.get_version import get_version as _do_get_version
+from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
 from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.publish import publish as _do_publish
@@ -143,6 +145,42 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_status() -> list[dict[str, Any]]:
         return _do_status(profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint File Version History",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List a SharePoint file's version history. Returns up to `limit` "
+            "versions newest-first, each with id (use with sp_get_version), "
+            "last_modified, last_modified_by (display name or email), and size. "
+            "Read-only. NOTE: per-version comments aren't currently exposed via "
+            "Microsoft Graph v1.0 — they land in SharePoint's web UI version "
+            "history but not in this response shape."
+        ),
+    )
+    def sp_history(url: str, limit: int = 20) -> list[dict[str, Any]]:
+        return _do_history(url, limit=limit, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Read SharePoint File Version",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Download a specific historical version of a SharePoint file to a "
+            "local temp file. Returns the absolute path. Use sp_history first to "
+            "find the version_id you want. Read-only — does NOT acquire a "
+            "checkout, does NOT modify SharePoint state."
+        ),
+    )
+    def sp_get_version(url: str, version_id: str) -> str:
+        return _do_get_version(url, version_id, profile=_get_profile())
 
 
 def register_write_tools(mcp_instance: FastMCP) -> None:
