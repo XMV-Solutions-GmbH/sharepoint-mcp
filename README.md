@@ -126,6 +126,9 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_list(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
 | `sp_read(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
 | `sp_status(verify=False)` | Show what files this agent currently has checked out, when, and where the local working copies are. With `verify=True`, additionally queries SharePoint to confirm the server-side lock state — adds `server_locked` (`true`/`false`/`null`) and `lock_holder` (display name) to each entry. Costs one Graph call per registry entry. |
+| `sp_sites(query?)` | Discover SharePoint sites the user can see. `query` is a free-text site-name search; omit to list all. Useful as the agent's starting point when no site URL is known yet. |
+| `sp_subsites(parent_site_url)` | List immediate sub-sites under a parent site URL. Recurse on each result's `web_url` to walk deeper. |
+| `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 
 ### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
 
