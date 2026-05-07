@@ -8,7 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No entries — track the next-version work in the v0.3 ticket queue.
+Tracked in the v0.4 backlog.
+
+## [v0.3.0] — 2026-05-07
+
+### Added — broader SharePoint Graph coverage
+
+- **`sp_sites(query?)`, `sp_subsites(parent_site_url)`, `sp_followed_sites()`** — site discovery (#49). Find SharePoint sites without hardcoded URLs.
+- **`sp_drives(site_url)`** + transparent multi-library support across every read/write tool — Site Assets, Style Library, custom libraries (#48).
+- **`sp_trash_list(site_url)`** — list items in the SharePoint site recycle bin (#50, list-only). Restore deferred to follow-up #64 — Microsoft Graph doesn't currently expose a `restore` action at site scope.
+- **`sp_lists(site_url)`, `sp_list_columns`, `sp_list_items`, `sp_get_item`** (read) and **`sp_create_item`, `sp_update_item`, `sp_delete_item`** (write) — full CRUD on SharePoint Lists (#44).
+- **`sp_permissions(url)`** — read-only inspection of who has access to a file/folder/site (#46). Normalised across user / group / sharing-link / siteUser / application principals.
+- **`sp_share_list(url)`** (read), **`sp_share_create(url, type, scope, expires?, password?)`** + **`sp_share_revoke(url, link_id)`** (write) — sharing-link management with conservative defaults (`view` + `organization`); explicit opt-in required for `anonymous` (#47).
+- **`sp_pages_list(site_url)`, `sp_page_read(page_url)`, `sp_page_update(page_url, title?, description?, thumbnail_web_url?)`** — modern SharePoint Pages with raw canvasLayout JSON (#45). Canvas-layout edits intentionally deferred — needs a clearer agent UX.
+- **`sp_changes(scope_url, since?)`** — Microsoft Graph delta queries for incremental change tracking (#51). Cursor-based; opaque to callers.
+
+### Changed
+
+- `CheckoutRegistry.add` / `.remove` already serialise via `threading.Lock`; multi-library support added a `resolve_drive_item_full` helper that transparently retries against the matched library on a default-drive 404. One extra `/drives` lookup per fallback; happy path unchanged.
+- `sp_permissions` grantee output gains a `link_web_url` field (used by `sp_share_list` to surface the actual share URL on existing links). Backward-compatible additive.
+
+### Documentation
+
+- README now covers all 24 read tools + 11 write tools across drives, lists, sites, pages, sharing, permissions, recycle-bin, and delta. Roadmap updated.
 
 ## [v0.2.0] — 2026-05-07
 
