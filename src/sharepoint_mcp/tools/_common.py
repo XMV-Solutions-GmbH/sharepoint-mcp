@@ -92,3 +92,27 @@ def resolve_site_id(
     )
     response.raise_for_status()
     return str(response.json()["id"])
+
+
+def resolve_drive_item(
+    client: httpx.Client,
+    site_id: str,
+    item_path: str,
+    *,
+    headers: dict[str, str],
+) -> tuple[str, str]:
+    """Resolve a drive-relative path to (drive_id, item_id).
+
+    Wraps `GET /sites/{site_id}/drive/root:/{item_path}`. Used by
+    write tools that need the drive_id + item_id for subsequent
+    /content / /checkout / /versions calls.
+    """
+    response = client.get(
+        f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}",
+        headers=headers,
+    )
+    response.raise_for_status()
+    item = response.json()
+    drive_id = str(item["parentReference"]["driveId"])
+    item_id = str(item["id"])
+    return drive_id, item_id

@@ -65,11 +65,18 @@ def test_writes_enabled_unset(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------
 
 
-def test_register_read_tools_adds_the_four_read_tools() -> None:
+def test_register_read_tools_adds_all_read_tools() -> None:
     server = FastMCP("test-read-only")
     register_read_tools(server)
     names = _list_tool_names(server)
-    assert names == {"sp_search", "sp_list", "sp_read", "sp_status"}
+    assert names == {
+        "sp_search",
+        "sp_list",
+        "sp_read",
+        "sp_status",
+        "sp_history",
+        "sp_get_version",
+    }
 
 
 def test_register_write_tools_adds_sp_open() -> None:
