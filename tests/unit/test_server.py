@@ -87,6 +87,8 @@ def test_register_read_tools_adds_all_read_tools() -> None:
         "sp_get_item",
         "sp_permissions",
         "sp_share_list",
+        "sp_pages_list",
+        "sp_page_read",
     }
 
 

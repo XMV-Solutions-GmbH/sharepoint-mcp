@@ -137,6 +137,8 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_get_item(list_url, item_id)` | Fetch a single SharePoint List item with all expanded fields. |
 | `sp_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope, link_web_url}`), and `inherited` flag. Read-only. |
 | `sp_share_list(url)` | List existing sharing links on a SharePoint file or folder — id, web_url (the share URL), type, scope, roles. Read-only. Use `sp_share_create` / `sp_share_revoke` for the write side. |
+| `sp_pages_list(site_url)` | List all modern SharePoint Pages (Site Pages) on a site — id, name, title, web_url, description, page_layout, last_modified. |
+| `sp_page_read(page_url)` | Fetch a single SharePoint Page including its canvasLayout (sections, columns, web parts) as raw JSON. `page_url` shape: `https://<host>/sites/<name>/SitePages/<page>.aspx`. |
 
 #### Non-default libraries
 
@@ -156,6 +158,7 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_delete_item(list_url, item_id)` | Delete a List item — sends to recycle bin (recoverable for ~93 days). |
 | `sp_share_create(url, type="view", scope="organization", expires?, password?)` | Create a sharing link. **Conservative defaults**: `type="view"`, `scope="organization"`. The agent must explicitly pass `scope="anonymous"` to make a public link — that's the most common ISMS-audit finding, so we don't make it the default. `type="edit"` grants WRITE to anyone with the URL within scope. |
 | `sp_share_revoke(url, link_id)` | Revoke (delete) a sharing-link permission. After this call the share URL stops working. `link_id` comes from `sp_share_create` or `sp_share_list`. |
+| `sp_page_update(page_url, title?, description?, thumbnail_web_url?)` | Update a SharePoint Page's metadata. Pass only the fields you want to change. Canvas-layout (web-parts) edits are NOT supported in v0.3 — round-tripping the deep nested JSON safely needs more design work; deferred to a follow-up. |
 
 #### Recycle bin: list-only, beta endpoint
 

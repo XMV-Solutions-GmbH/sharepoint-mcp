@@ -41,6 +41,9 @@ from sharepoint_mcp.tools.lists import list_items as _do_list_items
 from sharepoint_mcp.tools.lists import lists as _do_lists
 from sharepoint_mcp.tools.lists import update_item as _do_update_item
 from sharepoint_mcp.tools.open_file import open_file as _do_open
+from sharepoint_mcp.tools.pages import page_read as _do_page_read
+from sharepoint_mcp.tools.pages import page_update as _do_page_update
+from sharepoint_mcp.tools.pages import pages_list as _do_pages_list
 from sharepoint_mcp.tools.permissions import permissions as _do_permissions
 from sharepoint_mcp.tools.publish import publish as _do_publish
 from sharepoint_mcp.tools.read import read_file as _do_read
@@ -299,6 +302,39 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_get_item(list_url: str, item_id: str) -> dict[str, Any]:
         return _do_get_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Pages",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List all modern SharePoint Pages (Site Pages) on a site. "
+            "Returns each page's id, name (filename), title, web_url, "
+            "description, page_layout, thumbnail_web_url, last_modified, "
+            "last_modified_by. Read-only."
+        ),
+    )
+    def sp_pages_list(site_url: str) -> list[dict[str, Any]]:
+        return _do_pages_list(site_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Read SharePoint Page",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Fetch a single SharePoint Page including its canvasLayout "
+            "(sections, columns, web parts) as JSON. page_url shape: "
+            "https://<host>/sites/<name>/SitePages/<page>.aspx. Read-only."
+        ),
+    )
+    def sp_page_read(page_url: str) -> dict[str, Any]:
+        return _do_page_read(page_url, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
@@ -682,6 +718,38 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_share_revoke(url: str, link_id: str) -> None:
         _do_share_revoke(url, link_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Update SharePoint Page",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Update a SharePoint Page's metadata. Pass the fields you "
+            "want to change as kwargs: title, description, "
+            "thumbnail_web_url. Pass None (default) to leave a field "
+            "unchanged. At least one field is required. Canvas-layout "
+            "(web-parts) edits are NOT supported in v0.3 — round-tripping "
+            "the deep nested JSON safely needs more design work; tracked "
+            "as a follow-up."
+        ),
+    )
+    def sp_page_update(
+        page_url: str,
+        title: str | None = None,
+        description: str | None = None,
+        thumbnail_web_url: str | None = None,
+    ) -> dict[str, Any]:
+        return _do_page_update(
+            page_url,
+            title=title,
+            description=description,
+            thumbnail_web_url=thumbnail_web_url,
+            profile=_get_profile(),
+        )
 
 
 def _build_server() -> FastMCP:
