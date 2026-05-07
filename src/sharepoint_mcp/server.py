@@ -30,6 +30,7 @@ from mcp.types import ToolAnnotations
 
 from sharepoint_mcp.tools.bulk import open_many as _do_open_many
 from sharepoint_mcp.tools.bulk import save_many as _do_save_many
+from sharepoint_mcp.tools.changes import changes as _do_changes
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
@@ -302,6 +303,30 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_get_item(list_url: str, item_id: str) -> dict[str, Any]:
         return _do_get_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Track SharePoint Drive Changes",
+            readOnlyHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Return items in a SharePoint site's default drive that "
+            "changed since the optional `since` cursor — Microsoft "
+            "Graph delta query. First call (since=None) returns the "
+            "full item set + an initial cursor. Subsequent calls with "
+            "the cursor return only created/modified/deleted items "
+            "since that cursor. Result: {items: [...], cursor: str}. "
+            "The cursor is opaque — store it (the agent typically "
+            "puts it in conversation memory or a scratchpad) and pass "
+            "it back as `since`. A stale cursor surfaces as a 410 "
+            "Gone error; drop it and call again with since=None for "
+            "a full re-sync. Read-only."
+        ),
+    )
+    def sp_changes(scope_url: str, since: str | None = None) -> dict[str, Any]:
+        return _do_changes(scope_url, since=since, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
