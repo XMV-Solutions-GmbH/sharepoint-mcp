@@ -2,65 +2,57 @@
 
 # mcp-server-sharepoint
 
-[![Licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/mcp-server-sharepoint?color=0E7EE0)](https://pypi.org/project/mcp-server-sharepoint/)
+[![Python versions](https://img.shields.io/pypi/pyversions/mcp-server-sharepoint?color=0E7EE0)](https://pypi.org/project/mcp-server-sharepoint/)
+[![Downloads](https://img.shields.io/pypi/dm/mcp-server-sharepoint?label=downloads%2Fmonth&color=0E7EE0)](https://pypi.org/project/mcp-server-sharepoint/)
+[![Licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/LICENSE)
 [![CI](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml)
-[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues)
+[![Coverage](https://img.shields.io/codecov/c/github/XMV-Solutions-GmbH/sharepoint-mcp/main)](https://codecov.io/gh/XMV-Solutions-GmbH/sharepoint-mcp)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues)
 
-A **Model Context Protocol** server for SharePoint document libraries. Lets AI coding agents (Claude Code, Claude Desktop, any MCP client) read and edit files on SharePoint **without breaking version history, audit trail, or locking semantics** — by wrapping Microsoft Graph's native checkout / edit / checkin model as MCP tools.
+> **In one sentence:** an [MCP](https://modelcontextprotocol.io) server that lets AI coding agents like Claude Code edit files in your SharePoint document libraries **the same way a careful human would** — with proper checkout, comments, version history, and lock conflicts — instead of overwriting things and breaking your audit trail.
 
-> **Status:** v0.1 alpha. All MVP tools work end-to-end against real SharePoint. Not yet on PyPI. Full background in [docs/app-concept.md](docs/app-concept.md).
+## What is this for?
 
----
+You have important documents in SharePoint — ISO 27001 controls, contract templates, ISMS records, runbooks, a quality manual. They have version history, audit trails, retention policies, and someone above you cares that they stay compliant.
 
-## Why
+You'd love to let AI agents help you draft and update these documents — they're great at it. But every other "AI + SharePoint" tool you've tried makes the audit log say *"a robot named rclone updated this file at 03:42 with no comment"* — which means your auditor has questions.
 
-The standard alternatives — `rclone`, WebDAV mounts, the Anthropic-hosted M365 MCP — either skip SharePoint's checkout/checkin model entirely or expose it only for search and read. That's not acceptable for documents under retention or audit constraints (ISMS records, controlled procedures, contract templates).
+**`mcp-server-sharepoint` makes the audit log say what actually happened**: *"David Koller updated this file at 14:32. Comment: ‘Tightened control wording for A.5.1 per CISO review.’ Version: 3.5 → 3.6 (minor)."* Because the AI agent uses the same Microsoft-blessed checkout/checkin model a human Office user would.
 
-`mcp-server-sharepoint` keeps the audit trail intact: every edit goes through an explicit `sp_open` → `sp_save` (or `sp_release`) cycle, attributed to the signed-in user, with a commit message and an honest version bump. Lock conflicts are reported as conflicts. ETag-based stale-write detection prevents silent overwrites.
+Concretely, the agent gets these tools:
 
-Full rationale in [docs/app-concept.md](docs/app-concept.md).
-
----
-
-## MCP tools
-
-| Tool | What it does | Annotations |
+| Tool | What the agent does | What ends up in SharePoint |
 |---|---|---|
-| `sp_search(query, …)` | KQL-style search across visible SharePoint sites | read-only, idempotent |
-| `sp_list(url)` | List children of a folder | read-only, idempotent |
-| `sp_read(url)` | Download file content to a local temp path | read-only, idempotent |
-| `sp_status()` | Show files currently checked out by this profile | read-only, idempotent |
-| `sp_open(url)` | **Acquire checkout lock** + download to working dir | non-destructive lock |
-| `sp_save(url, comment, version="minor"\|"major")` | Upload + checkin with audit comment + ETag | destructive |
-| `sp_release(url)` | discardCheckout + drop local working copy | destructive |
+| `sp_search`, `sp_list`, `sp_read` | finds and reads files | nothing changes |
+| `sp_open` | acquires a checkout lock + downloads | "checked out by *you*" appears for everyone else |
+| `sp_save` | uploads + checks in with a comment | a real new version with a real comment in the audit log |
+| `sp_release` | discards a checkout | lock released, no version created |
+| `sp_status` | shows what's currently checked out by this agent | nothing changes |
 
-**Read-only by default.** The four read tools are always registered. The three write tools (`sp_open`/`sp_save`/`sp_release`) are only registered when `SP_ALLOW_WRITES=true` (or `1`/`yes`/`on`) is set — belt-and-suspenders to your MCP client's per-call permission prompts.
+Every action is attributed to the human who signed in once via Microsoft's standard Device Code login. No service-account "robot" identity. No silent overwrites. No broken locks. Lock conflicts are reported as conflicts. ETag checks catch concurrent edits before they clobber.
 
-Each tool is registered with proper [MCP `ToolAnnotations`](https://modelcontextprotocol.io/specification/server/tools#tool-annotations) so Claude Code's permission UI renders the right confirmation prompt for each.
+## Installation
 
----
+```bash
+pip install mcp-server-sharepoint
+# or, with uv (recommended):
+uv tool install mcp-server-sharepoint
+# or, on the fly without installing globally:
+uvx mcp-server-sharepoint --help
+```
+
+Requires Python 3.11+. Works on Linux, macOS, Windows.
 
 ## Quickstart
 
-### 1. Install
+### 1. Sign in once (out of band)
 
 ```bash
-# Once published on PyPI:
-uvx mcp-server-sharepoint --help
-
-# For now, from a local checkout:
-git clone https://github.com/XMV-Solutions-GmbH/sharepoint-mcp.git
-cd sharepoint-mcp
-uv sync
+uvx mcp-server-sharepoint login
 ```
 
-### 2. Sign in once (out of band)
-
-```bash
-uv run mcp-server-sharepoint login
-```
-
-You'll see something like:
+Output looks like:
 
 ```text
 Sign in to mcp-server-sharepoint via the Device Code flow:
@@ -72,11 +64,11 @@ Open the URL in a browser and type the code.
 Waiting for sign-in...
 ```
 
-Open the URL in any browser, type the code, sign in with your M365 account. The refresh token gets cached locally — see [Token storage](#token-storage) for where exactly. The MCP server itself never blocks for human interaction.
+Open the URL in any browser, type the code, sign in with your M365 account. Your refresh token is cached locally — see [Token storage](#token-storage). The MCP server itself never blocks for human interaction afterwards.
 
-### 3. Wire into your MCP client
+### 2. Wire it into Claude Code
 
-For **Claude Code**, add to `.mcp.json`:
+In your project's `.mcp.json`:
 
 ```json
 {
@@ -89,7 +81,9 @@ For **Claude Code**, add to `.mcp.json`:
 }
 ```
 
-Restart Claude Code. The agent now has `sp_search`, `sp_list`, `sp_read`, `sp_status` available. To enable write tools too:
+Restart Claude Code. The agent now has `sp_search`, `sp_list`, `sp_read`, `sp_status` available — **read-only by default**.
+
+### 3. Enable writes (when you're ready)
 
 ```json
 {
@@ -103,21 +97,74 @@ Restart Claude Code. The agent now has `sp_search`, `sp_list`, `sp_read`, `sp_st
 }
 ```
 
-### 4. Use it
+Now `sp_open`, `sp_save`, `sp_release` are also available.
 
-In Claude Code, ask the agent something like:
+### 4. Try it
 
 ```text
-Find the latest version of our ISO 27001 control A.5.1 policy in
-SharePoint, read it, suggest improvements, and save the updated
-version with a comment summarising the changes.
+You:    Find our latest ISO 27001 control A.5.1 policy in SharePoint.
+Agent:  [calls sp_search → finds it]
+        Found "iso27001-A.5.1.md" at https://contoso.sharepoint.com/...
+
+You:    Read it, suggest two improvements based on the new revision of the standard.
+Agent:  [calls sp_read → reads file → suggests in chat]
+
+You:    Apply them and save with a comment summarising the changes.
+Agent:  [calls sp_open → modifies → sp_save with comment]
+        Saved version 1.4. Comment recorded: "Tightened wording per ISO 27001:2022 to match new control objective; added cross-reference to A.5.2."
 ```
 
-The agent will: `sp_search` → `sp_open` → modify → `sp_save`. Each tool call gets a permission prompt in Claude Code (read tools too — Claude Code prompts on first use of any external tool by default). After a couple of approvals you can switch to "always allow" per tool.
+Each tool call gets a permission prompt in Claude Code (you can mark trusted ones as "always allow" per session). Read tools are flagged read-only; write tools are flagged destructive — you see the difference.
 
----
+## What it can do, in detail
 
-## Multi-profile / multi-customer
+### Read tools (always available)
+
+| Tool | Purpose |
+|---|---|
+| `sp_search(query, site?, folder?, file_type?, modified_after?)` | KQL-style search across SharePoint sites the user has access to. Returns hits with name, path, web URL, last-modified date, author. |
+| `sp_list(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
+| `sp_read(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
+| `sp_status()` | Show what files this agent currently has checked out, when, and where the local working copies are. |
+
+### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
+
+| Tool | Purpose |
+|---|---|
+| `sp_open(url)` | **Acquire a server-side checkout lock** + download the current content to a working-directory path. Other users see "checked out by *you*" until you save or release. Fails with a clear error if someone else already holds the lock. |
+| `sp_save(url, comment, version="minor"\|"major")` | Upload your changes + check the file back in with an audit comment + new version. **`comment` is required and must be non-empty** — describes what changed for the audit log. ETag round-trip catches "someone else changed the file underneath us" and refuses to clobber. |
+| `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
+
+### Authentication
+
+- **OAuth 2.0 Device Code flow** against Microsoft Identity. You sign in once; the refresh token is cached locally and silently renewed (~60–90 days until full re-login).
+- **Bring-your-own-app or use ours.** XMV publishes a multi-tenant Entra app registration that's baked in as the default — same pattern as Azure CLI / GitHub CLI. Tenants with strict app-allowlisting can override via `SP_CLIENT_ID` and `SP_TENANT_ID` env vars.
+- **Token storage** is auto-detected at first use: OS keyring (macOS Keychain / Windows Credential Locker / Linux Secret Service) when available, mode-0600 plain JSON file as fallback (same convention as `gh auth`, `aws configure`). Optional encryption with `SP_TOKEN_PASSPHRASE` for paranoid setups or CI.
+- **Multi-customer / multi-tenant**: separate `SP_PROFILE` per tenant, each with its own token cache.
+
+### Security model
+
+Three layers of "don't accidentally damage anything":
+
+1. **Your MCP client (Claude Code) prompts before each tool call by default.** Read tools are flagged read-only; write tools are flagged destructive — you see the difference at the prompt.
+2. **Read-only by default at our server.** Without `SP_ALLOW_WRITES=true`, the write tools aren't even registered. The agent literally can't see them.
+3. **`sp_save` requires a non-empty audit comment.** The agent has to articulate intent, and that lands in the SharePoint audit log.
+
+The threat model is "your local OS account is trusted" — same as `~/.ssh/id_rsa`, `gh` tokens, `aws` config. The tool isn't designed to defend against host compromise; it's designed to keep audit trails honest under normal use.
+
+## Roadmap
+
+| Version | Status | Theme | Highlights |
+|---|---|---|---|
+| **v0.1** | ✅ released 2026-05-07 | Audit-preserving doc edits | The seven `sp_*` tools above, three-layer test harness, Trusted-Publisher PyPI release pipeline, branch-protected `main`. |
+| **v0.2** | 🚧 in progress | Write-side polish | `sp_publish` (upload new file), `sp_history` + `sp_get_version` (version-history access), bulk operations, server-side reconciliation in `sp_status`, resumable uploads for files >250 MB, optional service-principal flow for unattended automation. |
+| **v0.3** | 📋 queued | Broader SharePoint surface | SharePoint Lists CRUD (custom lists, issue trackers, etc.), modern Pages read/edit, permissions inspection, sharing-link creation, multi-library access, site discovery, recycle-bin restore, delta queries for change tracking. |
+| **v0.4** | 🤔 maybe | Admin functions | Site / library / permission administration, IF customer demand emerges. |
+| **v1.0** | 🎯 stability lock-in | "API stable, production-tested" | After v0.x has been used in real customer environments for ~3–6 months without breaking changes. Not "more features" — a **commitment that what you depend on today still works tomorrow.** |
+
+The full ticket-by-ticket plan lives at the [issues page](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues).
+
+## Multi-profile pattern
 
 For consultancy workflows with multiple SharePoint tenants, give each its own profile so the token caches don't collide:
 
@@ -141,19 +188,15 @@ For consultancy workflows with multiple SharePoint tenants, give each its own pr
 Sign each one in separately:
 
 ```bash
-uv run mcp-server-sharepoint login --profile acme
-uv run mcp-server-sharepoint login --profile globex
+uvx mcp-server-sharepoint login --profile acme
+uvx mcp-server-sharepoint login --profile globex
 ```
 
 Tools appear in Claude as `mcp__sharepoint-acme__sp_search` etc. Cross-tenant accidents don't happen because the tokens are namespaced.
 
----
-
 ## BYO Entra app registration
 
-The package ships with a baked-in `client_id` for an XMV-Solutions-published multi-tenant Entra app (`cb7cf68d-90d5-4841-90a7-de3a40be280b`). End users normally don't need to think about this — same pattern as Azure CLI, GitHub CLI.
-
-If your tenant has strict app-allowlisting and refuses unknown publishers, register your own and override:
+Tenants with strict app-allowlisting can override the bundled multi-tenant default:
 
 ```json
 {
@@ -170,13 +213,7 @@ If your tenant has strict app-allowlisting and refuses unknown publishers, regis
 }
 ```
 
-The app must be:
-
-- Multi-tenant or single-tenant for your tenant
-- Public client (no secret), Device Code flow allowed
-- Delegated permissions: `Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`
-
----
+The app registration must be: multi-tenant or single-tenant, public client (no secret), Device Code flow allowed, with delegated permissions `Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`.
 
 ## Token storage
 
@@ -188,51 +225,21 @@ Three backends, auto-detected at first use:
 | 2 | Plain file `~/.cache/sharepoint-mcp/<profile>/token.json` mode 0600 | Headless Linux default | none |
 | 3 | Encrypted file (Fernet, Scrypt KDF) | When `SP_TOKEN_PASSPHRASE` is set | env var |
 
-Force a specific backend with `SP_TOKEN_STORE=keyring|file|encrypted-file`. See [the spike doc](docs/spikes/2026-05-06-keyring-vs-encrypted-file.md) for the rationale — short version: same security model as `gh auth`, `aws configure`, `npm login`. Encrypted-file is opt-in for CI / paranoid setups.
-
----
-
-## Security model
-
-This is the part to read carefully if you're putting the MCP near ISMS-relevant content.
-
-**What this tool does:**
-
-- Runs locally as a child process of your MCP client (Claude Code etc.).
-- Talks directly to `login.microsoftonline.com` and `graph.microsoft.com` over HTTPS.
-- Uses your delegated OAuth token. **Every action is attributed to your M365 account in SharePoint's audit log.**
-
-**What it does not do:**
-
-- No telemetry. No XMV-controlled servers in the loop. No data leaves your machine except the direct calls to Microsoft.
-- No service-principal / client-credentials flow in v0.1 — interactive user auth only. Compliance-friendly: no "rclone client" entries in audit logs.
-- No sharing-link generation, no permission changes, no library / site administration.
-
-**Three layers of protection against accidental damage:**
-
-1. **MCP-client permission prompts.** Claude Code prompts before each tool call by default. Even if you approve "always allow" on a write tool, it knows the tool's `destructiveHint` is `True` and can present that.
-2. **Read-only by default at the server.** Without `SP_ALLOW_WRITES=true`, the write tools aren't registered. Claude can't accidentally call `sp_save` if it never sees `sp_save`.
-3. **`sp_save` always requires a non-empty comment.** The audit log gets meaningful "what changed" annotations, not blank entries. The agent has to articulate intent.
-
-**Threat model:** if your local user account is compromised, the attacker has your tokens (same as your SSH keys, your gh CLI tokens, your aws CLI tokens). The tool is not designed to defend against host compromise. It is designed to keep audit trails honest and locks correct under normal use.
-
----
+Force a specific backend with `SP_TOKEN_STORE=keyring|file|encrypted-file`. See [the spike doc](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/docs/spikes/2026-05-06-keyring-vs-encrypted-file.md) for the rationale — short version: same security model as `gh auth`, `aws configure`, `npm login`.
 
 ## Troubleshooting
 
-### "No usable credentials" / `AuthRequiredError`
+### "No usable credentials"
 
 The cached token expired (refresh tokens last ~60–90 days) or never existed. Run:
 
 ```bash
-uv run mcp-server-sharepoint login --profile <name>
+uvx mcp-server-sharepoint login --profile <name>
 ```
-
-Then retry whatever tool call failed.
 
 ### "Cannot checkout: file is already checked out by another user"
 
-Someone else (or a previous instance of your own agent) has the file locked. Wait for them to release, or in the SharePoint web UI go to the library → file → "Discard check-out".
+Someone else (or a previous instance of your own agent) has the file locked. Wait, or in the SharePoint web UI go to the library → file → "Discard check-out".
 
 ### "File changed under us between sp_open and sp_save"
 
@@ -241,35 +248,28 @@ Your agent had the file open, but someone else edited it before your save. Recov
 ```text
 sp_release(url)        # drop your stale working copy + lock
 sp_open(url)           # acquire fresh lock + content
-# re-apply your edits to the new content
+# re-apply edits to the new content
 sp_save(url, comment="…", version="minor")
 ```
 
 ### Linux: keyring fails / "Secret Service unavailable"
 
-That's fine. The plain-file backend kicks in automatically — no action needed. If you'd rather have encryption at rest:
+The plain-file backend kicks in automatically — no action needed. If you'd rather have encryption at rest:
 
 ```bash
 export SP_TOKEN_PASSPHRASE='<some-strong-passphrase>'
-uv run mcp-server-sharepoint login --profile <name>
+uvx mcp-server-sharepoint login --profile <name>
 ```
-
-Then keep `SP_TOKEN_PASSPHRASE` exported (in `~/.bashrc`, `direnv`, etc.) for subsequent runs to decrypt.
 
 ### Recovery after a crash
 
 ```bash
-uv run mcp-server-sharepoint     # restart the server
+uvx mcp-server-sharepoint     # restart the server
 ```
 
-In the agent, ask `sp_status` — you'll see anything that was checked out before the crash. For each:
-
-- Resume work: working file is still on disk; `sp_save` works as normal.
-- Drop it: call `sp_release`.
+In the agent, ask `sp_status` — you'll see anything that was checked out before the crash. For each, either resume work (working file is still on disk; `sp_save` works as normal) or drop it (`sp_release`).
 
 The registry survives crashes; nothing is lost.
-
----
 
 ## Development
 
@@ -278,41 +278,38 @@ git clone https://github.com/XMV-Solutions-GmbH/sharepoint-mcp.git
 cd sharepoint-mcp
 uv sync --extra dev
 
-# Unit + integration (no real SharePoint)
+# Unit + integration (no real SharePoint), with coverage reporting
 ./tests/run_tests.sh
 
 # Harness (real SharePoint sandbox; requires harness-profile login)
 ./tests/run_tests.sh harness
 ```
 
-Project layout, testing strategy, and engineering principles:
-
-- [docs/app-concept.md](docs/app-concept.md) — vision, MVP scope, MCP tool surface, auth, conflict model
-- [docs/testconcept.md](docs/testconcept.md) — three-layer test strategy (unit / integration / harness)
-- [ENGINEERING_PRINCIPLES.md](ENGINEERING_PRINCIPLES.md) — project-agnostic engineering baseline
-- [CLAUDE.md](CLAUDE.md) — project-specific overrides
-- [docs/spikes/](docs/spikes/) — design-decision history (httpx vs SDK, token storage, etc.)
-
----
+| Document | What's in it |
+|---|---|
+| [`docs/app-concept.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/docs/app-concept.md) | Vision, MVP scope, MCP tool surface, auth, conflict model |
+| [`docs/testconcept.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/docs/testconcept.md) | Three-layer test strategy (unit / integration / harness) |
+| [`docs/RELEASING.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/docs/RELEASING.md) | How releases happen |
+| [`ENGINEERING_PRINCIPLES.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/ENGINEERING_PRINCIPLES.md) | Project-agnostic engineering baseline |
+| [`CLAUDE.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/CLAUDE.md) | Project-specific overrides |
+| [`docs/spikes/`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/tree/main/docs/spikes) | Design-decision history (httpx vs SDK, token storage, etc.) |
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) first.
+Contributions are welcome. Please read [CONTRIBUTING.md](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/CONTRIBUTING.md) and the [Code of Conduct](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/CODE_OF_CONDUCT.md) first.
 
----
+Bug reports and feature requests go to [GitHub Issues](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues).
 
 ## Licence
 
 Dual-licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT licence ([LICENSE-MIT](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
 Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
----
 
 ## Contact
 

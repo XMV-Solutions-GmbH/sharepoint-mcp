@@ -21,3 +21,9 @@ dist/
 .env.local
 *.pem
 secrets/
+
+# Coverage artefacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
