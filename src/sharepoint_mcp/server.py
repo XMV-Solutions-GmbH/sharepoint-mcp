@@ -21,6 +21,7 @@ from mcp.types import ToolAnnotations
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
 from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.search import search as _do_search
+from sharepoint_mcp.tools.status import status as _do_status
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
@@ -102,6 +103,24 @@ def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
 )
 def sp_read(url: str) -> str:
     return _do_read(url, profile=_get_profile())
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="List Checked-Out Files",
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    description=(
+        "List the files this MCP profile currently has checked out (acquired via "
+        "sp_open). Returns each entry's original path, when checkout happened, "
+        "and the local working-copy path. Read-only. v0.1 reads the local "
+        "registry only — server-side reconciliation lands in v0.2."
+    ),
+)
+def sp_status() -> list[dict[str, Any]]:
+    return _do_status(profile=_get_profile())
 
 
 def run() -> None:
