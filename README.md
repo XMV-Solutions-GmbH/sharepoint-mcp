@@ -200,7 +200,7 @@ The threat model is "your local OS account is trusted" — same as `~/.ssh/id_rs
 |---|---|---|---|
 | **v0.1** | ✅ released 2026-05-07 | Audit-preserving doc edits | The seven `sp_*` tools above, three-layer test harness, Trusted-Publisher PyPI release pipeline, branch-protected `main`. |
 | **v0.2** | ✅ released 2026-05-07 | Write-side polish | `sp_publish` (upload new file), `sp_history` + `sp_get_version` (version-history access), `sp_open_many` + `sp_save_many` (bulk operations with concurrency cap), `sp_status(verify=True)` server-side reconciliation, resumable uploads for files >100 MB (auto-switch), service-principal auth for unattended automation. |
-| **v0.3** | 📋 queued | Broader SharePoint surface | SharePoint Lists CRUD (custom lists, issue trackers, etc.), modern Pages read/edit, permissions inspection, sharing-link creation, multi-library access, site discovery, recycle-bin restore, delta queries for change tracking. |
+| **v0.3** | ✅ released 2026-05-07 | Broader SharePoint surface | Site discovery (`sp_sites` / `sp_subsites` / `sp_followed_sites`), multi-library support + `sp_drives`, SharePoint Lists CRUD, recycle-bin listing (`sp_trash_list`), permissions inspection (`sp_permissions`), sharing-link create/list/revoke (`sp_share_*`), modern Pages read/update (`sp_pages_list` / `sp_page_read` / `sp_page_update`), Graph delta-query change tracking (`sp_changes`). |
 | **v0.4** | 🤔 maybe | Admin functions | Site / library / permission administration, IF customer demand emerges. |
 | **v1.0** | 🎯 stability lock-in | "API stable, production-tested" | After v0.x has been used in real customer environments for ~3–6 months without breaking changes. Not "more features" — a **commitment that what you depend on today still works tomorrow.** |
 
