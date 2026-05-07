@@ -1,369 +1,102 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
-# Test Concept for AI-Assisted Development
 
-## Overview
+# Test Concept
 
-This document defines the testing strategy for projects developed with AI assistance. The primary goal is to enable AI agents to **autonomously verify** their implementations through a comprehensive test harness that runs locally on the command line.
-
----
-
-## Core Principle: Test Harness First
-
-**ALL software developed with AI assistance MUST begin with test automation.**
-
-Without executable tests, the AI cannot validate its own work, leading to accumulated errors and wasted iterations. The test harness is the foundation of autonomous quality assurance.
+This is the operationalised version of `ENGINEERING_PRINCIPLES.md` § 5 for `sharepoint-mcp`. Read the principles first; this document is the project-specific instantiation.
 
 ---
 
-## Test Harness Requirements
+## Three test layers
 
-Every project MUST have a **local test harness** that:
+| Layer | Where | What it verifies | External world | Speed |
+|---|---|---|---|---|
+| **Unit** | `tests/unit/` | Pure-function logic in isolation | All externals mocked (Microsoft Graph via `respx`, OS keyring via in-memory fake) | sub-second per test |
+| **Integration** | `tests/integration/` | Cross-module wiring with boundary mocks | Boundary mocks at HTTP layer (`respx` against `graph.microsoft.com`) and at the keyring/token-store layer | <1 s per test |
+| **Harness** | `tests/harness/` | Our code against the **real** Microsoft Graph + a real SharePoint sandbox | Real network, real Graph endpoints, real least-privilege user `d.koller@xmv.de` | seconds per test (network bound) |
 
-| Requirement | Description |
-| ----------- | ----------- |
-| **Command-line execution** | Runs entirely via CLI without manual UI interaction |
-| **No external dependencies** | Mocks all external services and APIs |
-| **Production-like** | Mirrors production code paths and configurations |
-| **Clear output** | Provides unambiguous pass/fail results |
-| **Fast execution** | Completes in seconds, not minutes |
+The harness layer is the **gate** per `ENGINEERING_PRINCIPLES.md` § 5: no v0.1 feature ticket lands without a corresponding harness test or a documented justification for why one isn't possible.
 
 ---
 
-## Tech-Stack Specific Implementations
+## What runs where
 
-### Shell/Bash Projects
+- `./tests/run_tests.sh` (default = `unit + integration`) — runs in CI on every PR. No SharePoint credentials needed.
+- `./tests/run_tests.sh harness` — requires `harness` profile token cache (run `uv run sharepoint-mcp login --profile harness` once). Runs from the developer machine; runs in CI as a separate job once `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret is wired (see [#25](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/25)).
+- `./tests/run_tests.sh all` — unit + integration + harness in one shot.
 
-```text
-tests/
-├── unit/                    # Pure function tests
-├── integration/             # Docker-based integration tests
-├── e2e/                     # Full workflow simulations
-├── fixtures/                # Mock servers, test data
-│   ├── Dockerfile.mock-*    # Mock service containers
-│   └── docker-compose.test.yml
-├── test_helper.bash         # Common functions
-└── run_tests.sh             # Single entry point
-```
+The `tests/conftest.py` auto-marks tests by their parent directory so `pytest -m unit` / `-m integration` / `-m harness` filter correctly without each test having to apply the marker by hand.
 
-**Framework:** [bats-core](https://github.com/bats-core/bats-core)
+---
 
-**Run all tests:**
+## Harness sandbox
+
+**Site**: `sharepoint-mcp-harness` in the XMV Solutions tenant. URL: <https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness>.
+
+**Test user**: `d.koller@xmv.de` — a real M365 user with the **smallest license that includes SharePoint** (E5 Developer in this case). Member of the M365 group that backs the harness site, with **Edit** permission. **No** admin roles, no access to other XMV tenant resources beyond what membership in the harness group implies.
+
+**Why a real user, not a service principal**: v0.1 only supports delegated user auth (no client-credentials flow). A leaked harness refresh token would let an attacker act as `d.koller@xmv.de` against the harness site only — the blast radius is bounded by the user's permissions.
+
+**Seed data**: the harness Documents library contains synthetic test files (`README.md`, `policies/iso27001-control-A.5.1.md`, `drafts/onboarding-draft.md`) sufficient for sp_search / sp_list / sp_read / sp_open / sp_save / sp_release flows. Tests that mutate state clean up after themselves via the `_cleanup.py` fixture.
+
+---
+
+## Authentication for tests
+
+**Local development**:
 
 ```bash
-./tests/run_tests.sh
+uv run sharepoint-mcp login --profile harness
 ```
+
+Refresh token cached at `~/.cache/sharepoint-mcp/harness/token.json` (mode 0600) on the developer's machine. Survives reboots, lasts ~60–90 days until Microsoft expires the refresh token.
+
+**CI**:
+
+The harness CI job receives the harness refresh token via the `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret (plus the optional `SP_TOKEN_PASSPHRASE` if you choose the encrypted-file backend). The job materialises the token cache at the start, runs `./tests/run_tests.sh harness`, and discards the runner.
+
+When the token expires (typically every ~60 days), an admin re-runs `uv run sharepoint-mcp login --profile harness` locally and updates the GitHub secret. There's no automatic refresh-the-secret mechanism — that would require either client-credentials (which we don't use for compliance reasons) or a long-lived service-principal seed (also off the table for v0.1).
 
 ---
 
-## Template Repository Tests
+## Mock-shape validation against real Graph (the discipline)
 
-This template repository includes its own test harness to validate the template structure.
+**Mocks must match real-server response shapes.** Documentation alone is not enough — Microsoft's docs are mostly accurate but occasionally drift. Mocks based on docs can silently agree with code based on the same docs while production behaviour diverges.
 
-### Test Structure
+**The validated workflow:**
 
-```text
-tests/
-└── run_tests.sh             # Single entry point
-```
+1. **Capture real responses** before writing mocks for a new tool: run the tool's underlying Graph endpoint against the harness sandbox via `curl` or a one-off `httpx` call, save the response payload.
+2. **Base the mocks on captured payloads.** If the captured shape diverges from what docs imply, the captured shape wins.
+3. **Write code to handle the captured shape.**
+4. **Harness test confirms** the live behaviour matches what unit tests assume.
 
-Tests are added as the template grows. Use bats-core for bash-based validation.
+**For v0.1 specifically:** initial mock drafts were inferred from Microsoft Graph documentation, then validated against captured responses on 2026-05-07. Findings: most response shapes were operationally correct (extra fields in real responses don't break parsing); one mismatch caught (`/shares` endpoint requires sharing-link, not site-membership — fixed by switching to site→drive lookup). The `sp_list` rewrite is the visible artefact of that validation pass.
 
-### Coverage Reporting
+**Where the mock-vs-reality gap is still untested**: error-path responses that are hard to provoke deterministically against the real server, namely:
 
-- **Tool:** kcov (for bash script coverage)
-- **Service:** Coveralls (badge in README)
+- **412 Precondition Failed** on `PUT /content` (only triggered by another user changing the file between sp_open and sp_save) — currently mock-only.
+- **423 Locked** on `POST /checkout` (only triggered by two parallel sessions of the same user) — currently mock-only.
 
----
-
-### Node.js/TypeScript Projects
-
-```text
-tests/
-├── unit/                    # Vitest/Jest unit tests
-├── integration/             # API/service integration
-├── e2e/                     # Playwright for UI (if applicable)
-├── harness/                 # Test utilities and mocks
-└── setup.ts                 # Global test setup
-```
-
-**Framework:** Vitest or Jest + Playwright for UI
-
-**Run all tests:**
-
-```bash
-npm test                     # Unit + integration
-npm run test:e2e             # End-to-end
-npm run test:coverage        # With coverage report
-```
-
-### Rust Projects
-
-```text
-src/
-├── lib.rs                   # Unit tests inline (#[cfg(test)])
-└── main.rs
-tests/
-├── integration/             # Integration tests
-└── fixtures/                # Test data and mocks
-```
-
-**Framework:** Built-in `cargo test`
-
-**Run all tests:**
-
-```bash
-cargo test                   # All tests
-cargo test --lib             # Unit tests only
-cargo test --test '*'        # Integration tests only
-```
-
-### Python Projects
-
-```text
-tests/
-├── unit/                    # pytest unit tests
-├── integration/             # pytest integration tests
-├── e2e/                     # pytest-playwright for UI
-├── conftest.py              # Shared fixtures
-└── fixtures/                # Test data and mocks
-```
-
-**Framework:** pytest + pytest-playwright for UI
-
-**Run all tests:**
-
-```bash
-pytest                       # All tests
-pytest tests/unit            # Unit tests only
-pytest --cov=src             # With coverage
-```
-
-### Go Projects
-
-```text
-pkg/
-├── module/
-│   ├── module.go
-│   └── module_test.go       # Unit tests
-internal/
-└── ...
-tests/
-├── integration/             # Integration tests
-└── e2e/                     # End-to-end tests
-```
-
-**Framework:** Built-in `go test`
-
-**Run all tests:**
-
-```bash
-go test ./...                # All tests
-go test -cover ./...         # With coverage
-```
+These are documented as known gaps. Both follow well-defined HTTP status semantics (RFC 7232 / RFC 4918) and Microsoft's documented error shapes. If a real-world failure surfaces an unexpected response shape, capture it and tighten the mocks.
 
 ---
 
-## UI Testing with Playwright
+## Test naming
 
-For projects with significant UI components:
-
-1. **Prefer headless Playwright tests** over manual UI verification
-2. **Use the Playwright MCP server** for AI-assisted UI testing
-3. **Record and replay patterns** for complex interactions
-4. **Screenshot comparisons** for visual regression
-
-### Playwright Setup
-
-```bash
-# Node.js
-npm install -D @playwright/test
-npx playwright install
-
-# Python
-pip install pytest-playwright
-playwright install
-```
-
-### Example Test Structure
-
-```typescript
-// tests/e2e/login.spec.ts
-import { test, expect } from '@playwright/test';
-
-test('user can log in successfully', async ({ page }) => {
-  await page.goto('/login');
-  await page.fill('[data-testid="email"]', 'test@example.com');
-  await page.fill('[data-testid="password"]', 'password');
-  await page.click('[data-testid="submit"]');
-  await expect(page).toHaveURL('/dashboard');
-});
-```
+| Prefix / location | Purpose |
+|---|---|
+| `tests/unit/test_*.py` | Per-module unit tests, mocks at any layer needed |
+| `tests/unit/tools/test_<tool>.py` | One file per `sp_*` tool |
+| `tests/unit/test_server.py` | FastMCP registration logic (read-only-default gating) |
+| `tests/integration/test_*.py` | Cross-module flows with boundary mocks |
+| `tests/harness/test_<tool>.py` | One file per tool against real Graph |
+| `tests/harness/test_write_lifecycle.py` | open → save / open → release end-to-end |
+| `tests/harness/test_auth_smoke.py` | First-line auth chain (post-login proof of life) |
 
 ---
 
-## AI Development Protocol
+## What's NOT in scope of the test suite
 
-When implementing features with AI assistance:
-
-```text
-1. User describes feature requirement
-2. AI creates/updates /docs/todo.md with the task
-3. AI writes failing tests in the test harness
-4. AI runs tests (expected: FAIL)
-5. AI implements minimal code
-6. AI runs tests (expected: PASS)
-7. AI refactors while keeping tests green
-8. AI marks task complete in /docs/todo.md
-9. Repeat for next feature
-```
-
-**CRITICAL:** After EVERY code change, run the test harness to verify. Do not proceed if tests fail.
-
----
-
-## Test Coverage Requirements
-
-| Level | Coverage Target | Description |
-| ----- | --------------- | ----------- |
-| Unit | ≥80% | All functions, classes, and modules |
-| Integration | Critical paths | Component interactions and data flow |
-| E2E | Happy paths | Critical user journeys |
-
-### Coverage Tools by Language
-
-| Language | Tool | Command |
-| -------- | ---- | ------- |
-| JavaScript/TypeScript | c8 / istanbul | `npm run test:coverage` |
-| Python | coverage.py | `pytest --cov` |
-| Rust | cargo-tarpaulin | `cargo tarpaulin` |
-| Go | built-in | `go test -cover` |
-| Shell | bashcov | `bashcov ./tests/run_tests.sh` |
-
----
-
-## Mock Strategy
-
-### What to Mock
-
-- External APIs and services
-- Database connections (use in-memory or containers)
-- File system operations (where appropriate)
-- Network requests
-- Time-dependent operations
-
-### What NOT to Mock
-
-- Core business logic
-- Data transformations
-- Internal module interactions (for integration tests)
-
-### Docker-Based Mocking
-
-For complex dependencies, use Docker containers:
-
-```yaml
-# docker-compose.test.yml
-services:
-  mock-api:
-    build:
-      context: ./tests/fixtures
-      dockerfile: Dockerfile.mock-api
-    ports:
-      - "8080:8080"
-
-  test-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: test
-      POSTGRES_USER: test
-      POSTGRES_PASSWORD: test
-```
-
----
-
-## Continuous Integration
-
-### Minimum CI Requirements
-
-1. **Lint** — Code style and quality checks
-2. **Unit tests** — Fast feedback
-3. **Integration tests** — Component verification
-4. **Coverage report** — Track test coverage
-
-### Example GitHub Actions Workflow
-
-```yaml
-# .github/workflows/ci.yml
-name: ci
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: ./tests/run_tests.sh
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-```
-
----
-
-## Test Naming Conventions
-
-### Unit Tests
-
-Format: `[function/class]_[scenario]_[expected result]`
-
-Examples:
-
-- `parse_config_valid_input_returns_config_object`
-- `calculate_total_empty_cart_returns_zero`
-- `validate_email_invalid_format_throws_error`
-
-### Integration Tests
-
-Format: `[components]_[interaction]_[expected result]`
-
-Examples:
-
-- `api_database_create_user_persists_record`
-- `auth_session_valid_token_grants_access`
-
-### E2E Tests
-
-Format: `[user journey]_[expected outcome]`
-
-Examples:
-
-- `checkout_flow_completes_order_successfully`
-- `password_reset_sends_email_and_allows_reset`
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-| ----- | -------- |
-| Tests pass locally but fail in CI | Ensure all dependencies are installed in CI; check for environment differences |
-| Flaky tests | Remove time dependencies; use deterministic test data; increase timeouts for async operations |
-| Slow test suite | Parallelise tests; use faster test databases; mock expensive operations |
-| Coverage gaps | Review uncovered code paths; add edge case tests |
-
----
-
-## References
-
-- [bats-core](https://github.com/bats-core/bats-core) — Bash Automated Testing System
-- [Vitest](https://vitest.dev/) — Blazing fast unit test framework
-- [pytest](https://pytest.org/) — Python testing framework
-- [Playwright](https://playwright.dev/) — End-to-end testing for modern web apps
-- [Testing Trophy](https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications) — Testing philosophy
-
----
-
-*This test concept is licensed under MIT OR Apache-2.0.*
+- Real-world tenants other than the harness sandbox. We don't run automated tests against XMV's production data, customer tenants, or anything we don't fully own.
+- Microsoft itself (Microsoft Graph uptime, scope-policy changes) — observed via harness failures, responded to with code/doc fixes, not by trying to mock around them.
+- Cross-MCP-client compatibility (Claude Desktop, other MCP clients) — the protocol is the contract; we test against `mcp` Python SDK conformance, not specific clients.
+- Performance / load testing — manual / future. v0.1 is correctness first.
