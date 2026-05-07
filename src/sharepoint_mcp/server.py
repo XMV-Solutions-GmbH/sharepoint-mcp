@@ -39,6 +39,7 @@ from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.release import release as _do_release
 from sharepoint_mcp.tools.save import save as _do_save
 from sharepoint_mcp.tools.search import search as _do_search
+from sharepoint_mcp.tools.sites import drives as _do_drives
 from sharepoint_mcp.tools.sites import followed_sites as _do_followed_sites
 from sharepoint_mcp.tools.sites import sites as _do_sites
 from sharepoint_mcp.tools.sites import subsites as _do_subsites
@@ -209,6 +210,26 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_subsites(parent_site_url: str) -> list[dict[str, Any]]:
         return _do_subsites(parent_site_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Document Libraries",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List all document libraries (drives) on a SharePoint site — "
+            "default Shared Documents plus Site Assets, Style Library, "
+            "and any custom libraries. `site_url` is the site's web URL. "
+            "Returns each drive's id, name, web_url, description, "
+            "drive_type, and quota. Most read/write tools accept URLs "
+            "into any library transparently — sp_drives is the discovery "
+            "step when the agent doesn't know which libraries exist yet."
+        ),
+    )
+    def sp_drives(site_url: str) -> list[dict[str, Any]]:
+        return _do_drives(site_url, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(

@@ -145,7 +145,11 @@ def test_list_folder_site_root(store_with_fresh_token: None) -> None:
 def test_list_folder_subfolder(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site_lookup()
-    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/policies:/children").respond(
+    # New flow: resolve subfolder driveItem first, then list /drives/.../children
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/policies").respond(
+        json={"id": "FID", "name": "policies", "parentReference": {"driveId": "DID"}},
+    )
+    respx.get(f"{GRAPH_BASE}/drives/DID/items/FID/children").respond(
         json={
             "value": [
                 {
@@ -202,9 +206,12 @@ def test_list_folder_propagates_404_on_site_lookup(store_with_fresh_token: None)
 def test_list_folder_propagates_404_on_folder(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site_lookup()
-    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing:/children").respond(
+    # The driveItem lookup itself 404s now. Library fallback adds an empty
+    # /drives lookup (no library matched) and re-raises the original 404.
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing").respond(
         404, json={"error": {"code": "itemNotFound"}}
     )
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drives").respond(json={"value": []})
     with pytest.raises(httpx.HTTPStatusError):
         list_folder(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/missing")
 

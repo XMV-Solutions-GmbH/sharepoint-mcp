@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from sharepoint_mcp.auth import AuthRequiredError, get_token
-from sharepoint_mcp.tools.sites import followed_sites, sites, subsites
+from sharepoint_mcp.tools.sites import drives, followed_sites, sites, subsites
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -74,3 +74,21 @@ def test_followed_sites_returns_list() -> None:
 def test_subsites_validation_does_not_need_harness() -> None:
     with pytest.raises(ValueError, match="non-empty parent_site_url"):
         subsites("", profile=HARNESS_PROFILE)
+
+
+def test_drives_lists_at_least_default_library() -> None:
+    """Every SharePoint site has at least one document library — the default
+    'Shared Documents'. The display name is localised by SharePoint to the
+    site's content language (en: 'Documents', de: 'Dokumente', etc.); we
+    assert presence + drive_type rather than a specific name."""
+    _skip_if_no_harness()
+    result = drives(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    doc_libraries = [d for d in result if d.get("drive_type") == "documentLibrary"]
+    assert len(doc_libraries) >= 1, f"no documentLibrary found in {result!r}"
+
+
+def test_drives_validation_does_not_need_harness() -> None:
+    with pytest.raises(ValueError, match="non-empty site_url"):
+        drives("", profile=HARNESS_PROFILE)

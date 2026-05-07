@@ -79,6 +79,7 @@ def test_register_read_tools_adds_all_read_tools() -> None:
         "sp_sites",
         "sp_subsites",
         "sp_followed_sites",
+        "sp_drives",
     }
 
 

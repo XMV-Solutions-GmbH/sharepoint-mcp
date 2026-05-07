@@ -24,7 +24,12 @@ from pathlib import Path
 import httpx
 
 from sharepoint_mcp.auth import get_token
-from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
+from sharepoint_mcp.tools._common import (
+    GRAPH_BASE,
+    parse_sharepoint_url,
+    resolve_drive_item_full,
+    resolve_site_id,
+)
 
 TEMP_FILE_PREFIX = "sharepoint-mcp-"
 
@@ -67,9 +72,11 @@ def read_file(
     client = http if http is not None else httpx.Client(timeout=60.0, follow_redirects=True)
     try:
         site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-
+        item = resolve_drive_item_full(client, site_id, item_path, headers=headers)
+        drive_id = item["parentReference"]["driveId"]
+        item_id = item["id"]
         content_response = client.get(
-            f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}:/content",
+            f"{GRAPH_BASE}/drives/{drive_id}/items/{item_id}/content",
             headers=headers,
         )
         content_response.raise_for_status()

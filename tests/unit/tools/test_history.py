@@ -124,11 +124,15 @@ def test_history_sends_top_and_orderby(store_with_fresh_token: None) -> None:
 
 @respx.mock
 def test_history_propagates_404(store_with_fresh_token: None) -> None:
+    """When the default-drive lookup 404s and no library matches the path,
+    the original 404 is surfaced. The library-fallback in resolve_drive_item
+    adds one /drives lookup per 404 — we mock it to return an empty list."""
     del store_with_fresh_token
     respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(json={"id": SITE_ID})
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing.docx").respond(
         404, json={"error": {"code": "itemNotFound"}}
     )
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drives").respond(json={"value": []})
     with pytest.raises(httpx.HTTPStatusError):
         history(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/missing.docx")
 

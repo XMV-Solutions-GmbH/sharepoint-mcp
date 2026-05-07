@@ -13,6 +13,7 @@ to the tools/ subpackage".
 
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 import httpx
@@ -100,19 +101,117 @@ def resolve_drive_item(
     item_path: str,
     *,
     headers: dict[str, str],
+    allow_library_fallback: bool = True,
 ) -> tuple[str, str]:
     """Resolve a drive-relative path to (drive_id, item_id).
 
-    Wraps `GET /sites/{site_id}/drive/root:/{item_path}`. Used by
-    write tools that need the drive_id + item_id for subsequent
-    /content / /checkout / /versions calls.
+    Default behaviour: tries the site's default drive first
+    (`/sites/{site_id}/drive/root:/{item_path}`). If that 404s and
+    `allow_library_fallback=True` (the default), splits the path on
+    its first segment, looks that segment up as a library/drive name
+    on the site, and retries against that drive's root. This is what
+    makes URLs into non-default libraries (Site Assets, custom
+    document libraries, etc.) work transparently.
+
+    Set `allow_library_fallback=False` to disable the fallback —
+    useful when the caller already knows the path is in the default
+    drive and wants the original 404 to propagate without an extra
+    Graph round-trip.
     """
-    response = client.get(
-        f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}",
+    item = resolve_drive_item_full(
+        client,
+        site_id,
+        item_path,
         headers=headers,
+        allow_library_fallback=allow_library_fallback,
     )
-    response.raise_for_status()
-    item = response.json()
     drive_id = str(item["parentReference"]["driveId"])
     item_id = str(item["id"])
     return drive_id, item_id
+
+
+def resolve_drive_item_full(
+    client: httpx.Client,
+    site_id: str,
+    item_path: str,
+    *,
+    headers: dict[str, str],
+    allow_library_fallback: bool = True,
+) -> dict[str, Any]:
+    """Resolve a drive-relative path and return the full Graph driveItem.
+
+    Like `resolve_drive_item` but returns the parsed driveItem dict
+    so callers can read `name`, `eTag`, `size`, etc. without a
+    second round-trip.
+
+    See `resolve_drive_item` for the library-fallback semantics.
+    """
+    primary_url = (
+        f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}"
+        if item_path
+        else f"{GRAPH_BASE}/sites/{site_id}/drive/root"
+    )
+    primary = client.get(primary_url, headers=headers)
+    if primary.status_code != 404 or not allow_library_fallback or not item_path:
+        primary.raise_for_status()
+        return dict(primary.json())
+
+    # Library fallback: first segment of item_path may be a non-default
+    # library name (e.g. "SiteAssets"). List the site's drives, find a
+    # match by display name, retry against that drive's root.
+    library_segment, _, rest = item_path.partition("/")
+    drive_id = _find_drive_id_by_name(client, site_id, library_segment, headers=headers)
+    if drive_id is None:
+        # No such library — re-raise the original 404 for clarity.
+        primary.raise_for_status()
+        return dict(primary.json())  # unreachable; mypy
+
+    fallback_url = (
+        f"{GRAPH_BASE}/drives/{drive_id}/root:/{rest}"
+        if rest
+        else f"{GRAPH_BASE}/drives/{drive_id}/root"
+    )
+    fallback = client.get(fallback_url, headers=headers)
+    fallback.raise_for_status()
+    return dict(fallback.json())
+
+
+def _find_drive_id_by_name(
+    client: httpx.Client,
+    site_id: str,
+    name: str,
+    *,
+    headers: dict[str, str],
+) -> str | None:
+    """Return the drive id whose display name matches `name` (case-insensitive),
+    or None if the site has no such library.
+
+    One Graph round-trip per call. Bulk operations across many distinct
+    library URLs in one process pay this cost per URL; for the common
+    case of repeated access to the same library, callers can plumb
+    their own cache, but for v0.3 we keep it stateless for simplicity.
+    """
+    response = client.get(f"{GRAPH_BASE}/sites/{site_id}/drives", headers=headers)
+    response.raise_for_status()
+    drives = response.json().get("value", []) or []
+    needle = name.casefold()
+    for drive in drives:
+        candidate = (drive.get("name") or "").casefold()
+        if candidate == needle:
+            return str(drive["id"])
+    return None
+
+
+def list_site_drives(
+    client: httpx.Client,
+    site_id: str,
+    *,
+    headers: dict[str, str],
+) -> list[dict[str, Any]]:
+    """List all drives (libraries) on a site. Used by sp_drives."""
+    response = client.get(f"{GRAPH_BASE}/sites/{site_id}/drives", headers=headers)
+    response.raise_for_status()
+    raw = response.json().get("value", [])
+    if not isinstance(raw, list):
+        return []
+    return [dict(d) for d in raw if isinstance(d, dict)]
