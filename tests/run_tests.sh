@@ -26,6 +26,12 @@ cd "${REPO_ROOT}"
 
 target="${1:-default}"
 
+# Coverage opt-in via SP_COVERAGE env. Default ("auto"): on for unit +
+# integration (where coverage is meaningful), off for harness (network-
+# bound and not the right thing to measure for line coverage).
+# SP_COVERAGE=1 forces it on regardless; SP_COVERAGE=0 forces it off.
+rm -f .coverage coverage.xml 2>/dev/null || true
+
 run_layer() {
     local layer="$1"
     local path="${SCRIPT_DIR}/${layer}"
@@ -33,9 +39,19 @@ run_layer() {
         echo "ERROR: layer directory not found: ${path}" >&2
         return 1
     fi
+    local cov_args=()
+    case "${SP_COVERAGE:-auto}" in
+        1|true|yes|on) cov_args=(--cov --cov-report=term --cov-report=xml --cov-append) ;;
+        0|false|no|off) cov_args=() ;;
+        *)
+            if [[ "${layer}" == "unit" || "${layer}" == "integration" ]]; then
+                cov_args=(--cov --cov-report=term --cov-report=xml --cov-append)
+            fi
+            ;;
+    esac
     echo ">>> uv run pytest tests/${layer}"
     local rc=0
-    uv run pytest -m "${layer}" "${path}" || rc=$?
+    uv run pytest -m "${layer}" "${cov_args[@]}" "${path}" || rc=$?
     # pytest exit code 5 = "no tests collected"; treat as success for
     # layers that haven't been populated yet (early-development reality).
     case "${rc}" in
