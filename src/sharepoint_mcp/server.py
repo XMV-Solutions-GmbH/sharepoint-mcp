@@ -28,6 +28,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from sharepoint_mcp.tools.bulk import open_many as _do_open_many
+from sharepoint_mcp.tools.bulk import save_many as _do_save_many
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
@@ -288,6 +290,55 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             local_path,
             target_folder_url,
             name=name,
+            profile=_get_profile(),
+        )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Bulk Checkout SharePoint Files",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Acquire server-side checkout locks on multiple SharePoint files in "
+            "parallel (up to 4 concurrent Graph calls per Microsoft throttling "
+            "guidance). Returns one result per input URL in the same order: "
+            "{path, status='ok', local_path} on success, "
+            "{path, status='error', error} on failure. Per-file failures do NOT "
+            "abort the rest — caller decides whether to continue or rollback "
+            "(via sp_release on the successful entries). Use when an agent has "
+            "to edit a known set of files and wants the round-trip latency "
+            "amortised across them."
+        ),
+    )
+    def sp_open_many(urls: list[str]) -> list[dict[str, Any]]:
+        return _do_open_many(urls, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Bulk Save and Checkin SharePoint Files",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Upload local working copies and checkin multiple SharePoint files in "
+            "parallel (up to 4 concurrent Graph calls). Each `operations` entry: "
+            "{url, comment, version='minor'|'major' (default 'minor')}. `comment` "
+            "is required for each — goes into the audit trail per file. Returns "
+            "one result per input op in the same order: {path, status='ok', "
+            "version_id, etag, web_url} on success, {path, status='error', error} "
+            "on failure. Per-file failures do NOT abort the rest. ETag round-trip "
+            "for stale-write detection still applies per file."
+        ),
+    )
+    def sp_save_many(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # Validation of per-op shape happens inside save_many.
+        return _do_save_many(
+            operations,  # type: ignore[arg-type]
             profile=_get_profile(),
         )
 
