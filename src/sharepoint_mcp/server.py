@@ -230,8 +230,8 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "v1.0. Schema may shift; we'll migrate when v1.0 lands."
         ),
     )
-    def sp_trash_list(site_url: str) -> list[dict[str, Any]]:
-        return _do_trash_list(site_url, profile=_get_profile())
+    def sp_trash_list(site_url: str, limit: int = 200) -> list[dict[str, Any]]:
+        return _do_trash_list(site_url, limit=limit, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(

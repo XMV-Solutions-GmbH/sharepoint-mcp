@@ -45,24 +45,33 @@ GRAPH_BETA_BASE = "https://graph.microsoft.com/beta"
 def trash_list(
     site_url: str,
     *,
+    limit: int = 200,
     profile: str = "default",
     http: httpx.Client | None = None,
 ) -> list[dict[str, Any]]:
-    """List items in the recycle bin of `site_url`.
+    """List items in the recycle bin of `site_url`, newest first.
 
-    Returns a list of recycle-bin items with id, name, size,
-    deleted_date_time, deleted_from_location, deleted_by. Empty list
-    when the recycle bin is empty.
+    Returns up to `limit` items. The recycle bin can hold many
+    thousands of items on busy sites; we paginate via `@odata.nextLink`
+    until either `limit` is reached or there are no more pages. Default
+    200 = Microsoft's default page size, so the typical case is a
+    single round-trip.
+
+    Each item: id, name, size, deleted_date_time,
+    deleted_from_location, deleted_by. Empty list when the recycle
+    bin is empty.
 
     Raises:
-        ValueError: empty / blank site_url, or URL points at a file
-            rather than a site.
-        httpx.HTTPStatusError: any non-2xx from Graph beta. Common
-            ones: 403 if the user lacks site-collection scope; 404 if
-            the tenant has the recycle-bin endpoint disabled.
+        ValueError: empty / blank site_url, URL points at a file, or
+            limit < 1.
+        httpx.HTTPStatusError: any non-2xx from Graph beta. Common:
+            403 if the user lacks site-collection scope; 404 if the
+            tenant has the recycle-bin endpoint disabled.
     """
     if not site_url or not site_url.strip():
         raise ValueError("sp_trash_list requires a non-empty site_url")
+    if limit < 1:
+        raise ValueError(f"limit must be >= 1, got {limit!r}")
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
     if item_path:
         raise ValueError(
@@ -75,12 +84,19 @@ def trash_list(
     client = http if http is not None else httpx.Client(timeout=30.0)
     try:
         site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-        response = client.get(
-            f"{GRAPH_BETA_BASE}/sites/{site_id}/recycleBin/items",
-            headers=headers,
+        next_url: str | None = (
+            f"{GRAPH_BETA_BASE}/sites/{site_id}/recycleBin/items"
+            "?$orderby=deletedDateTime+desc&$top=200"
         )
-        response.raise_for_status()
-        return _extract_trash_items(response.json())
+        results: list[dict[str, Any]] = []
+        while next_url and len(results) < limit:
+            response = client.get(next_url, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+            results.extend(_extract_trash_items(payload))
+            next_link = payload.get("@odata.nextLink")
+            next_url = str(next_link) if next_link else None
+        return results[:limit]
     finally:
         if http is None:
             client.close()

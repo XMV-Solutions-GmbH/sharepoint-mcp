@@ -101,6 +101,59 @@ def test_trash_list_returns_normalised_items(store_with_fresh_token: None) -> No
 
 
 @respx.mock
+def test_trash_list_paginates_via_nextLink(store_with_fresh_token: None) -> None:
+    """Multi-page recycle bin: follow @odata.nextLink until limit or done."""
+    del store_with_fresh_token
+    _mock_site_lookup()
+    next_link = f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin-page2"
+    page1 = respx.get(url__startswith=f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items")
+    page1.respond(
+        json={
+            "value": [{"id": "p1-a", "name": "a"}],
+            "@odata.nextLink": next_link,
+        },
+    )
+    respx.get(next_link).respond(json={"value": [{"id": "p2-a", "name": "b"}]})
+    out = trash_list(SITE_URL)
+    assert [r["id"] for r in out] == ["p1-a", "p2-a"]
+
+
+@respx.mock
+def test_trash_list_respects_limit(store_with_fresh_token: None) -> None:
+    """If the first page already has `limit` items, don't fetch the next page."""
+    del store_with_fresh_token
+    _mock_site_lookup()
+    next_link = f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin-page2"
+    page1 = respx.get(
+        url__startswith=f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items",
+    ).respond(
+        json={
+            "value": [{"id": "1"}, {"id": "2"}, {"id": "3"}],
+            "@odata.nextLink": next_link,
+        },
+    )
+    page2 = respx.get(next_link).respond(json={"value": [{"id": "4"}]})
+    out = trash_list(SITE_URL, limit=2)
+    assert [r["id"] for r in out] == ["1", "2"]
+    assert page1.call_count == 1
+    assert page2.call_count == 0
+
+
+@respx.mock
+def test_trash_list_orderby_desc_and_top_in_first_call(store_with_fresh_token: None) -> None:
+    """First-call URL includes the sort + paging hint."""
+    del store_with_fresh_token
+    _mock_site_lookup()
+    route = respx.get(f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items").respond(
+        json={"value": []}
+    )
+    trash_list(SITE_URL)
+    url = str(route.calls.last.request.url)
+    assert "deletedDateTime" in url and "desc" in url
+    assert "$top=200" in url or "%24top=200" in url
+
+
+@respx.mock
 def test_trash_list_empty(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site_lookup()
@@ -119,6 +172,11 @@ def test_trash_list_propagates_403(store_with_fresh_token: None) -> None:
     )
     with pytest.raises(httpx.HTTPStatusError):
         trash_list(SITE_URL)
+
+
+def test_trash_list_rejects_zero_limit() -> None:
+    with pytest.raises(ValueError, match="limit must be"):
+        trash_list(SITE_URL, limit=0)
 
 
 def test_trash_list_rejects_empty_url() -> None:
