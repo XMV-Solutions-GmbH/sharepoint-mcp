@@ -25,12 +25,9 @@ from pathlib import Path
 
 import httpx
 
+from sharepoint_mcp import checkout_registry as _registry_module
 from sharepoint_mcp.auth import get_token
-from sharepoint_mcp.checkout_registry import (
-    DEFAULT_REGISTRY_DIR,
-    CheckedOutEntry,
-    CheckoutRegistry,
-)
+from sharepoint_mcp.checkout_registry import CheckedOutEntry, CheckoutRegistry
 from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
 
 WORKING_DIR_NAME = "working"
@@ -81,7 +78,7 @@ def open_file(
     if not item_path:
         raise ValueError(f"sp_open needs a file URL, got {url!r}")
 
-    resolved_base = base_dir if base_dir is not None else DEFAULT_REGISTRY_DIR
+    resolved_base = base_dir if base_dir is not None else _registry_module.DEFAULT_REGISTRY_DIR
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}
     client = http if http is not None else httpx.Client(timeout=60.0, follow_redirects=True)
