@@ -6,121 +6,239 @@
 Each tool is wrapped with explicit `ToolAnnotations` so MCP clients
 (notably Claude Code's permission system) can render the right
 prompt — read-only tools get a different treatment from destructive
-ones. The annotations are part of our security story: if we lie here,
-the client can't make sensible safety decisions.
+ones. The annotations are part of our security story: if we lie
+here, the client can't make sensible safety decisions.
+
+**Read-only by default.** Write tools (sp_open, sp_save, sp_release)
+are only registered when `SP_ALLOW_WRITES=true` (or =1 / =yes / =on)
+is set in the environment. This is belt-and-suspenders to Claude
+Code's per-call permission prompts: if you don't even register the
+write tools, the agent literally can't call them, regardless of
+whether the user accidentally clicks "Always allow" on the wrong
+prompt.
 """
 
 from __future__ import annotations
 
+import logging
 import os
+import sys
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
+from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.read import read_file as _do_read
+from sharepoint_mcp.tools.release import release as _do_release
+from sharepoint_mcp.tools.save import save as _do_save
 from sharepoint_mcp.tools.search import search as _do_search
 from sharepoint_mcp.tools.status import status as _do_status
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
-
-mcp: FastMCP = FastMCP("sharepoint-mcp")
+ALLOW_WRITES_ENV = "SP_ALLOW_WRITES"
+_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 def _get_profile() -> str:
-    """Profile name for this MCP-server-process; from `SP_PROFILE` env var."""
     return os.environ.get(PROFILE_ENV, DEFAULT_PROFILE)
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        title="Search SharePoint",
-        readOnlyHint=True,
-        idempotentHint=True,
-        openWorldHint=False,
-    ),
-    description=(
-        "Search the SharePoint document libraries the signed-in user has access to. "
-        "Returns matching files with name, path, webUrl, last-modified date, and author. "
-        "Read-only — does not modify any SharePoint state. "
-        "Filter args: site (URL), folder (path), file_type (extension like 'docx'), "
-        "modified_after (ISO date)."
-    ),
-)
-def sp_search(
-    query: str,
-    site: str | None = None,
-    folder: str | None = None,
-    file_type: str | None = None,
-    modified_after: str | None = None,
-    limit: int = 25,
-) -> list[dict[str, Any]]:
-    return _do_search(
-        query,
-        site=site,
-        folder=folder,
-        file_type=file_type,
-        modified_after=modified_after,
-        limit=limit,
-        profile=_get_profile(),
+def writes_enabled() -> bool:
+    """True iff `SP_ALLOW_WRITES` is set to a recognised truthy value.
+
+    Default (unset / empty / anything else): writes are NOT enabled,
+    matching the read-only-default policy.
+    """
+    return os.environ.get(ALLOW_WRITES_ENV, "").strip().lower() in _TRUE_VALUES
+
+
+def register_read_tools(mcp_instance: FastMCP) -> None:
+    """Register the unconditionally-available read tools on `mcp_instance`."""
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Search SharePoint",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Search the SharePoint document libraries the signed-in user has access to. "
+            "Returns matching files with name, path, webUrl, last-modified date, and "
+            "author. Read-only — does not modify any SharePoint state. "
+            "Filter args: site (URL), folder (path), file_type (extension like 'docx'), "
+            "modified_after (ISO date)."
+        ),
     )
+    def sp_search(
+        query: str,
+        site: str | None = None,
+        folder: str | None = None,
+        file_type: str | None = None,
+        modified_after: str | None = None,
+        limit: int = 25,
+    ) -> list[dict[str, Any]]:
+        return _do_search(
+            query,
+            site=site,
+            folder=folder,
+            file_type=file_type,
+            modified_after=modified_after,
+            limit=limit,
+            profile=_get_profile(),
+        )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Folder",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List the immediate children of a SharePoint or OneDrive folder. "
+            "`url` is the folder's human-readable web URL (e.g. from a previous "
+            "sp_search hit's web_url, or the SharePoint web UI). Returns each "
+            "child with name, type ('folder' or 'file'), size, last-modified date, "
+            "and webUrl. Read-only — does not modify SharePoint state."
+        ),
+    )
+    def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
+        return _do_list(url, limit=limit, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Read SharePoint File",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Download a SharePoint file's content to a local temp file. Returns the "
+            "absolute path of the temp file with the original extension preserved. "
+            "Read-only — does NOT acquire a checkout/lock; use sp_open for that. "
+            "`url` is the file's human-readable web URL (e.g. from sp_search hits)."
+        ),
+    )
+    def sp_read(url: str) -> str:
+        return _do_read(url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List Checked-Out Files",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List the files this MCP profile currently has checked out (acquired via "
+            "sp_open). Returns each entry's original path, when checkout happened, "
+            "and the local working-copy path. Read-only. v0.1 reads the local "
+            "registry only — server-side reconciliation lands in v0.2."
+        ),
+    )
+    def sp_status() -> list[dict[str, Any]]:
+        return _do_status(profile=_get_profile())
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        title="List SharePoint Folder",
-        readOnlyHint=True,
-        idempotentHint=True,
-        openWorldHint=False,
-    ),
-    description=(
-        "List the immediate children of a SharePoint or OneDrive folder. "
-        "`url` is the folder's human-readable web URL (e.g. from a previous "
-        "sp_search hit's web_url, or the SharePoint web UI). Returns each "
-        "child with name, type ('folder' or 'file'), size, last-modified date, "
-        "and webUrl. Read-only — does not modify SharePoint state."
-    ),
-)
-def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
-    return _do_list(url, limit=limit, profile=_get_profile())
+def register_write_tools(mcp_instance: FastMCP) -> None:
+    """Register the gated write tools on `mcp_instance`.
+
+    Only invoked when `SP_ALLOW_WRITES` is truthy. The functions
+    themselves are real implementations; the gating is purely about
+    whether the agent is offered them at tools/list time.
+    """
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Checkout SharePoint File",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Acquire a server-side checkout lock on a SharePoint file and download "
+            "its current content to a local working-copy path. Other users see the "
+            "file as 'checked out by you' until you call sp_save or sp_release. "
+            "Returns the local working-copy path. Fails with a clear error if the "
+            "file is already checked out by another user."
+        ),
+    )
+    def sp_open(url: str) -> str:
+        return _do_open(url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Save and Checkin SharePoint File",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Upload the local working copy and checkin the file with a comment, "
+            "creating a new version (minor by default, or major if version='major'). "
+            "Releases the server-side checkout lock. `comment` is REQUIRED and goes "
+            "into the SharePoint audit trail — describe what changed. Detects "
+            "stale-write conflicts (file changed by someone else between sp_open "
+            "and sp_save) via ETag round-trip and raises a clear error so the "
+            "agent can re-open and reconcile. Returns the new version's id, etag, "
+            "and webUrl."
+        ),
+    )
+    def sp_save(url: str, comment: str, version: str = "minor") -> dict[str, Any]:
+        if version not in ("minor", "major"):
+            raise ValueError(f"version must be 'minor' or 'major', got {version!r}")
+        return _do_save(
+            url,
+            comment=comment,
+            version=version,  # type: ignore[arg-type]
+            profile=_get_profile(),
+        )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Discard SharePoint Checkout",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Discard a pending checkout without saving any local changes. Releases "
+            "the server-side lock, deletes the local working-copy file, and "
+            "removes the registry entry. Idempotent: silently no-ops when nothing "
+            "is checked out for the given url. Use this when you decide not to "
+            "keep edits made after sp_open."
+        ),
+    )
+    def sp_release(url: str) -> None:
+        _do_release(url, profile=_get_profile())
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        title="Read SharePoint File",
-        readOnlyHint=True,
-        idempotentHint=True,
-        openWorldHint=False,
-    ),
-    description=(
-        "Download a SharePoint file's content to a local temp file. Returns the "
-        "absolute path of the temp file with the original extension preserved. "
-        "Read-only — does NOT acquire a checkout/lock; use sp_open for that. "
-        "`url` is the file's human-readable web URL (e.g. from sp_search hits)."
-    ),
-)
-def sp_read(url: str) -> str:
-    return _do_read(url, profile=_get_profile())
+def _build_server() -> FastMCP:
+    """Build and return a FastMCP server with the right tools registered."""
+    server = FastMCP("sharepoint-mcp")
+    register_read_tools(server)
+    if writes_enabled():
+        register_write_tools(server)
+    else:
+        # One-line note on stderr so users running uvx interactively
+        # see why writes are absent. Quiet by default to avoid noise
+        # in MCP-client-launched contexts (Claude Code captures stderr
+        # but doesn't surface it loudly).
+        logging.getLogger("sharepoint-mcp").info(
+            "SP_ALLOW_WRITES not set — read-only mode (sp_open / sp_save / sp_release "
+            "not registered). Set SP_ALLOW_WRITES=true to enable writes.",
+        )
+    return server
 
 
-@mcp.tool(
-    annotations=ToolAnnotations(
-        title="List Checked-Out Files",
-        readOnlyHint=True,
-        idempotentHint=True,
-        openWorldHint=False,
-    ),
-    description=(
-        "List the files this MCP profile currently has checked out (acquired via "
-        "sp_open). Returns each entry's original path, when checkout happened, "
-        "and the local working-copy path. Read-only. v0.1 reads the local "
-        "registry only — server-side reconciliation lands in v0.2."
-    ),
-)
-def sp_status() -> list[dict[str, Any]]:
-    return _do_status(profile=_get_profile())
+mcp: FastMCP = _build_server()
 
 
 def run() -> None:
@@ -129,3 +247,8 @@ def run() -> None:
     Blocks until stdin closes.
     """
     mcp.run()
+
+
+# Suppress the "imported but unused" hint for the sys import — it's
+# kept for future stderr-printing use that we may need cross-module.
+_ = sys
