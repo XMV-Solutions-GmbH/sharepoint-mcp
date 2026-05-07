@@ -124,6 +124,7 @@ def _extract_grantee(entry: dict[str, Any]) -> dict[str, Any]:
             "email": "",
             "link_type": str(link.get("type") or ""),
             "link_scope": str(link.get("scope") or ""),
+            "link_web_url": str(link.get("webUrl") or ""),
         }
 
     candidates: list[dict[str, Any]] = []
@@ -148,6 +149,7 @@ def _extract_grantee(entry: dict[str, Any]) -> dict[str, Any]:
         "email": "",
         "link_type": "",
         "link_scope": "",
+        "link_web_url": "",
     }
 
 
@@ -175,6 +177,7 @@ def _normalise_identity(identity: dict[str, Any]) -> dict[str, Any]:
                 "email": email,
                 "link_type": "",
                 "link_scope": "",
+                "link_web_url": "",
             }
     return {
         "type": "unknown",
@@ -182,4 +185,5 @@ def _normalise_identity(identity: dict[str, Any]) -> dict[str, Any]:
         "email": "",
         "link_type": "",
         "link_scope": "",
+        "link_web_url": "",
     }

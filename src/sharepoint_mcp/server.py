@@ -47,6 +47,9 @@ from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.release import release as _do_release
 from sharepoint_mcp.tools.save import save as _do_save
 from sharepoint_mcp.tools.search import search as _do_search
+from sharepoint_mcp.tools.sharing import share_create as _do_share_create
+from sharepoint_mcp.tools.sharing import share_list as _do_share_list
+from sharepoint_mcp.tools.sharing import share_revoke as _do_share_revoke
 from sharepoint_mcp.tools.sites import drives as _do_drives
 from sharepoint_mcp.tools.sites import followed_sites as _do_followed_sites
 from sharepoint_mcp.tools.sites import sites as _do_sites
@@ -296,6 +299,25 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_get_item(list_url: str, item_id: str) -> dict[str, Any]:
         return _do_get_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Sharing Links",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List existing sharing links on a SharePoint file or folder. "
+            "Each entry: id (use with sp_share_revoke), web_url (the share "
+            "URL), type (view/edit/embed/blocksDownload), scope (organization"
+            "/anonymous/users), roles, expiration, has_password. "
+            "Read-only — does not create or revoke. Use sp_share_create to "
+            "make a new link, sp_share_revoke to remove one."
+        ),
+    )
+    def sp_share_list(url: str) -> list[dict[str, Any]]:
+        return _do_share_list(url, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
@@ -604,6 +626,62 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_delete_item(list_url: str, item_id: str) -> None:
         _do_delete_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Create SharePoint Sharing Link",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Create a sharing link on a SharePoint file or folder. Returns "
+            "{id, web_url, type, scope, ...}. **Defaults are conservative**: "
+            "type='view' (read-only), scope='organization' (signed-in users in "
+            "your tenant only). To create a public link the agent must "
+            "explicitly pass scope='anonymous' — the most common ISMS-audit "
+            "finding. type='edit' grants WRITE to anyone with the URL within "
+            "scope; combine with scope='anonymous' only on explicit user "
+            "request. Optional: `expires` (ISO 8601 datetime) and `password` "
+            "(only meaningful for anonymous; tenant may disable). "
+            "Marked destructive in MCP annotations because the link creates "
+            "a discoverable access path that persists until revoked."
+        ),
+    )
+    def sp_share_create(
+        url: str,
+        type: str = "view",
+        scope: str = "organization",
+        expires: str | None = None,
+        password: str | None = None,
+    ) -> dict[str, Any]:
+        return _do_share_create(
+            url,
+            type=type,
+            scope=scope,
+            expires=expires,
+            password=password,
+            profile=_get_profile(),
+        )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Revoke SharePoint Sharing Link",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Revoke (delete) a sharing-link permission. After this call the "
+            "share URL stops working. `link_id` is the permission id from "
+            "sp_share_create or sp_share_list. Idempotent: re-revoking an "
+            "already-revoked link is a 404 from Graph (we propagate)."
+        ),
+    )
+    def sp_share_revoke(url: str, link_id: str) -> None:
+        _do_share_revoke(url, link_id, profile=_get_profile())
 
 
 def _build_server() -> FastMCP:

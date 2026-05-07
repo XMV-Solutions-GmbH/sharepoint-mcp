@@ -135,7 +135,8 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_list_columns(list_url)` | Schema of a SharePoint List — column definitions (name, type, required, hidden, etc.). `list_url` shape: `https://<host>/sites/<name>/Lists/<list-name>`. |
 | `sp_list_items(list_url, filter?, top?)` | List items in a SharePoint List with full fields expansion. `filter` is an optional OData expression like `"fields/Status eq 'Open'"`. |
 | `sp_get_item(list_url, item_id)` | Fetch a single SharePoint List item with all expanded fields. |
-| `sp_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope}`), and `inherited` flag. Read-only. |
+| `sp_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope, link_web_url}`), and `inherited` flag. Read-only. |
+| `sp_share_list(url)` | List existing sharing links on a SharePoint file or folder — id, web_url (the share URL), type, scope, roles. Read-only. Use `sp_share_create` / `sp_share_revoke` for the write side. |
 
 #### Non-default libraries
 
@@ -153,6 +154,8 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_create_item(list_url, fields)` | Create a new item in a SharePoint List. `fields` is a dict of column-name -> value pairs (use `sp_list_columns` to inspect schema). |
 | `sp_update_item(list_url, item_id, fields)` | Patch fields on an existing List item. Only keys present in `fields` are changed. |
 | `sp_delete_item(list_url, item_id)` | Delete a List item — sends to recycle bin (recoverable for ~93 days). |
+| `sp_share_create(url, type="view", scope="organization", expires?, password?)` | Create a sharing link. **Conservative defaults**: `type="view"`, `scope="organization"`. The agent must explicitly pass `scope="anonymous"` to make a public link — that's the most common ISMS-audit finding, so we don't make it the default. `type="edit"` grants WRITE to anyone with the URL within scope. |
+| `sp_share_revoke(url, link_id)` | Revoke (delete) a sharing-link permission. After this call the share URL stops working. `link_id` comes from `sp_share_create` or `sp_share_list`. |
 
 #### Recycle bin: list-only, beta endpoint
 
