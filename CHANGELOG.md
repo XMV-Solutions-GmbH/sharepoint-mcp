@@ -8,12 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+*(no entries — most recent commits land under v0.1.0 once that release is cut)*
+
+## [v0.1.0] — pending
+
 ### Added
 
-- Python package skeleton: `pyproject.toml` (hatchling, dual-license), `src/sharepoint_mcp/` layout with empty MCP server stub on top of `mcp.server.fastmcp.FastMCP`, argparse CLI shim with `--help` / `--version`.
-- Three-layer test scaffolding (`tests/{unit,integration,harness}/`) with auto-marker conftest hook, `tests/run_tests.sh` dispatcher, four passing unit smoke tests.
-- Tooling: ruff (lint + format, line-length 100, target py311), mypy (strict), pytest with markers per layer.
-- CI updated: replace bats step with `uv sync --extra dev`, ruff check + format, mypy, pytest unit + integration default.
-- Initial project structure (engineering principles, app concept, license, contributing).
+- **Authentication**: OAuth 2.0 Device Code Flow against Microsoft Identity, silent refresh-token loop, three-tier token persistence (OS keyring / plain file mode 0600 / passphrase-encrypted file). Multi-profile support via `SP_PROFILE`. BYO Entra app registration via `SP_CLIENT_ID` / `SP_TENANT_ID` for tenants with strict app-allowlisting.
+- **Read tools** (always registered): `sp_search`, `sp_list`, `sp_read`, `sp_status`.
+- **Write tools** (registered when `SP_ALLOW_WRITES=true`): `sp_open`, `sp_save`, `sp_release`. Mandatory non-empty audit comment on every save. ETag-based stale-write detection. Per-process checkout registry persisted across crashes.
+- **MCP tool annotations** correctly applied to every tool (`readOnlyHint`, `destructiveHint`, etc.) so MCP clients render appropriate permission prompts.
+- **CLI**: `sharepoint-mcp login [--profile NAME]`, `sharepoint-mcp logout [--profile NAME]`, `sharepoint-mcp` (default — start the MCP server on stdio).
+- **Test harness**: three layers (unit / integration / harness) with the harness layer running against a real SharePoint sandbox in CI via the `SHAREPOINT_HARNESS_TOKEN_JSON` repo secret.
+- **Documentation**: README with quickstart + security model + troubleshooting; engineering principles + project conventions; testconcept; spike decisions for major design choices.
+
+### Project layout
+
+- Python package skeleton: `pyproject.toml` (hatchling, dual-license MIT OR Apache-2.0), `src/sharepoint_mcp/` layout.
+- Tooling: ruff (lint + format, line-length 100, target py311), mypy (strict), pytest 8+ with auto-markers per layer.
+- CI: lint + test + harness jobs in GitHub Actions on every push to `main` and intra-repo PR.
+
+### Initial project structure
+
+- Engineering principles, app concept, license (dual MIT OR Apache-2.0), contributing guidelines, security policy.
 
 [Unreleased]: https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/compare/v0.1.0...HEAD
