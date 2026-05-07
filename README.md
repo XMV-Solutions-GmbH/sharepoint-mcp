@@ -169,7 +169,7 @@ The threat model is "your local OS account is trusted" — same as `~/.ssh/id_rs
 | Version | Status | Theme | Highlights |
 |---|---|---|---|
 | **v0.1** | ✅ released 2026-05-07 | Audit-preserving doc edits | The seven `sp_*` tools above, three-layer test harness, Trusted-Publisher PyPI release pipeline, branch-protected `main`. |
-| **v0.2** | 🚧 in progress | Write-side polish | `sp_publish` (upload new file), `sp_history` + `sp_get_version` (version-history access), bulk operations, server-side reconciliation in `sp_status`, resumable uploads for files >250 MB, optional service-principal flow for unattended automation. |
+| **v0.2** | ✅ released 2026-05-07 | Write-side polish | `sp_publish` (upload new file), `sp_history` + `sp_get_version` (version-history access), `sp_open_many` + `sp_save_many` (bulk operations with concurrency cap), `sp_status(verify=True)` server-side reconciliation, resumable uploads for files >100 MB (auto-switch), service-principal auth for unattended automation. |
 | **v0.3** | 📋 queued | Broader SharePoint surface | SharePoint Lists CRUD (custom lists, issue trackers, etc.), modern Pages read/edit, permissions inspection, sharing-link creation, multi-library access, site discovery, recycle-bin restore, delta queries for change tracking. |
 | **v0.4** | 🤔 maybe | Admin functions | Site / library / permission administration, IF customer demand emerges. |
 | **v1.0** | 🎯 stability lock-in | "API stable, production-tested" | After v0.x has been used in real customer environments for ~3–6 months without breaking changes. Not "more features" — a **commitment that what you depend on today still works tomorrow.** |
