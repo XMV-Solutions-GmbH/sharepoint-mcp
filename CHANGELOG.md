@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No entries yet — most recent commits land under v0.1.0 once that release is cut.
 
-## [v0.1.0] — pending
+## [v0.1.0] — 2026-05-07
 
 ### Added
 
@@ -33,3 +33,5 @@ No entries yet — most recent commits land under v0.1.0 once that release is cu
 - Engineering principles, app concept, license (dual MIT OR Apache-2.0), contributing guidelines, security policy.
 
 [Unreleased]: https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/compare/v0.1.0...HEAD
+
+[v0.1.0]: https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/releases/tag/v0.1.0
