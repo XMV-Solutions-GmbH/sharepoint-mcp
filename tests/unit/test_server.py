@@ -76,6 +76,9 @@ def test_register_read_tools_adds_all_read_tools() -> None:
         "sp_status",
         "sp_history",
         "sp_get_version",
+        "sp_sites",
+        "sp_subsites",
+        "sp_followed_sites",
     }
 
 

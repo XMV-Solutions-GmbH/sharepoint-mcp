@@ -39,6 +39,9 @@ from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.release import release as _do_release
 from sharepoint_mcp.tools.save import save as _do_save
 from sharepoint_mcp.tools.search import search as _do_search
+from sharepoint_mcp.tools.sites import followed_sites as _do_followed_sites
+from sharepoint_mcp.tools.sites import sites as _do_sites
+from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 
 PROFILE_ENV = "SP_PROFILE"
@@ -169,6 +172,62 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_history(url: str, limit: int = 20) -> list[dict[str, Any]]:
         return _do_history(url, limit=limit, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Search SharePoint Sites",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Discover SharePoint sites the signed-in user has access to. "
+            "`query` is a free-text site-name search (e.g. 'finance'); "
+            "omit / leave empty to list all visible sites. Returns each "
+            "site's id, name, web_url, description, last_modified. "
+            "Read-only. Use as the entry point when the agent doesn't "
+            "yet know which site URL to drill into."
+        ),
+    )
+    def sp_sites(query: str | None = None) -> list[dict[str, Any]]:
+        return _do_sites(query, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Sub-Sites",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List immediate sub-sites under a parent SharePoint site. "
+            "`parent_site_url` is the parent's web URL "
+            "(e.g. https://contoso.sharepoint.com/sites/parent). "
+            "Returns direct children only — recurse on each result's "
+            "web_url to walk deeper. Read-only."
+        ),
+    )
+    def sp_subsites(parent_site_url: str) -> list[dict[str, Any]]:
+        return _do_subsites(parent_site_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List Followed SharePoint Sites",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List sites the signed-in user has marked as Followed in "
+            "SharePoint. Useful 'my SharePoint' entry point for an agent "
+            "starting from the user's curated list rather than guessing "
+            "site URLs. Not available in service-principal auth mode "
+            "(no signed-in user) — falls back to a clear error there. "
+            "Read-only."
+        ),
+    )
+    def sp_followed_sites() -> list[dict[str, Any]]:
+        return _do_followed_sites(profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
