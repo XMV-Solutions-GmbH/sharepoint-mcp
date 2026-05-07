@@ -18,6 +18,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from sharepoint_mcp.tools.list_folder import list_folder as _do_list
 from sharepoint_mcp.tools.search import search as _do_search
 
 PROFILE_ENV = "SP_PROFILE"
@@ -63,6 +64,25 @@ def sp_search(
         limit=limit,
         profile=_get_profile(),
     )
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="List SharePoint Folder",
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    description=(
+        "List the immediate children of a SharePoint or OneDrive folder. "
+        "`url` is the folder's human-readable web URL (e.g. from a previous "
+        "sp_search hit's web_url, or the SharePoint web UI). Returns each "
+        "child with name, type ('folder' or 'file'), size, last-modified date, "
+        "and webUrl. Read-only — does not modify SharePoint state."
+    ),
+)
+def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
+    return _do_list(url, limit=limit, profile=_get_profile())
 
 
 def run() -> None:
