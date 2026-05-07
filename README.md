@@ -131,6 +131,10 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 | `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
 | `sp_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
+| `sp_lists(site_url)` | List all SharePoint Lists on a site (id, name, display_name, web_url, description, template). |
+| `sp_list_columns(list_url)` | Schema of a SharePoint List — column definitions (name, type, required, hidden, etc.). `list_url` shape: `https://<host>/sites/<name>/Lists/<list-name>`. |
+| `sp_list_items(list_url, filter?, top?)` | List items in a SharePoint List with full fields expansion. `filter` is an optional OData expression like `"fields/Status eq 'Open'"`. |
+| `sp_get_item(list_url, item_id)` | Fetch a single SharePoint List item with all expanded fields. |
 
 #### Non-default libraries
 
@@ -145,6 +149,9 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
 | `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
 | `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
+| `sp_create_item(list_url, fields)` | Create a new item in a SharePoint List. `fields` is a dict of column-name -> value pairs (use `sp_list_columns` to inspect schema). |
+| `sp_update_item(list_url, item_id, fields)` | Patch fields on an existing List item. Only keys present in `fields` are changed. |
+| `sp_delete_item(list_url, item_id)` | Delete a List item — sends to recycle bin (recoverable for ~93 days). |
 
 #### Recycle bin: list-only, beta endpoint
 

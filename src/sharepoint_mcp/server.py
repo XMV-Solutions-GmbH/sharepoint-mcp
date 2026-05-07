@@ -33,6 +33,13 @@ from sharepoint_mcp.tools.bulk import save_many as _do_save_many
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
+from sharepoint_mcp.tools.lists import create_item as _do_create_item
+from sharepoint_mcp.tools.lists import delete_item as _do_delete_item
+from sharepoint_mcp.tools.lists import get_item as _do_get_item
+from sharepoint_mcp.tools.lists import list_columns as _do_list_columns
+from sharepoint_mcp.tools.lists import list_items as _do_list_items
+from sharepoint_mcp.tools.lists import lists as _do_lists
+from sharepoint_mcp.tools.lists import update_item as _do_update_item
 from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.publish import publish as _do_publish
 from sharepoint_mcp.tools.read import read_file as _do_read
@@ -211,6 +218,83 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_subsites(parent_site_url: str) -> list[dict[str, Any]]:
         return _do_subsites(parent_site_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Lists",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List all SharePoint Lists on a site (Issue Trackers, Tasks, "
+            "Custom Lists, etc.). Returns each list's id, name, "
+            "display_name, web_url, description, created_date_time, "
+            "last_modified_date_time, and template (e.g. 'genericList', "
+            "'documentLibrary', 'tasks'). Read-only."
+        ),
+    )
+    def sp_lists(site_url: str) -> list[dict[str, Any]]:
+        return _do_lists(site_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Get SharePoint List Schema",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Return the column definitions (schema) of a SharePoint List. "
+            "Each column: id, display_name, name (internal), description, "
+            "required, hidden, read_only, indexed, type (text/choice/number/"
+            "boolean/datetime/person/lookup/calculated/hyperlink/currency). "
+            "list_url shape: https://<host>/sites/<name>/Lists/<list-name>. "
+            "Read-only."
+        ),
+    )
+    def sp_list_columns(list_url: str) -> list[dict[str, Any]]:
+        return _do_list_columns(list_url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint List Items",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List items in a SharePoint List with their full fields "
+            "expanded. `filter` is an optional OData $filter expression "
+            "(e.g. \"fields/Status eq 'Open'\"). `top` caps results "
+            "(default 100, max 5000 per Graph). list_url shape: "
+            "https://<host>/sites/<name>/Lists/<list-name>. Read-only."
+        ),
+    )
+    def sp_list_items(
+        list_url: str,
+        filter: str | None = None,  # noqa: A002
+        top: int = 100,
+    ) -> list[dict[str, Any]]:
+        return _do_list_items(list_url, filter=filter, top=top, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Get SharePoint List Item",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Fetch a single SharePoint List item by id with all expanded "
+            "fields. Returns id, created_date_time, last_modified_date_time, "
+            "created_by, last_modified_by, web_url, fields (dict). "
+            "list_url shape: https://<host>/sites/<name>/Lists/<list-name>. "
+            "Read-only."
+        ),
+    )
+    def sp_get_item(list_url: str, item_id: str) -> dict[str, Any]:
+        return _do_get_item(list_url, item_id, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
@@ -442,6 +526,62 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             operations,  # type: ignore[arg-type]
             profile=_get_profile(),
         )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Create SharePoint List Item",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Create a new item in a SharePoint List. `fields` is a dict of "
+            "column-internal-name -> value pairs that match the list's "
+            "schema (use sp_list_columns to inspect). Returns the new "
+            "item with its server-assigned id. list_url shape: "
+            "https://<host>/sites/<name>/Lists/<list-name>."
+        ),
+    )
+    def sp_create_item(list_url: str, fields: dict[str, Any]) -> dict[str, Any]:
+        return _do_create_item(list_url, fields, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Update SharePoint List Item",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Patch fields on an existing SharePoint List item. Only the "
+            "keys present in `fields` are changed; the rest stay as-is. "
+            "Returns the updated fields dict. list_url shape: "
+            "https://<host>/sites/<name>/Lists/<list-name>. `item_id` "
+            "comes from sp_list_items."
+        ),
+    )
+    def sp_update_item(list_url: str, item_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        return _do_update_item(list_url, item_id, fields, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Delete SharePoint List Item",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Delete a SharePoint List item. SharePoint sends it to the "
+            "site recycle bin (default behaviour for DELETE on listItem) — "
+            "use sp_trash_list to find it for ~93 days afterwards. "
+            "list_url shape: https://<host>/sites/<name>/Lists/<list-name>."
+        ),
+    )
+    def sp_delete_item(list_url: str, item_id: str) -> None:
+        _do_delete_item(list_url, item_id, profile=_get_profile())
 
 
 def _build_server() -> FastMCP:
