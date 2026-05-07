@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
 
-# Releasing sharepoint-mcp
+# Releasing mcp-server-sharepoint
 
 Steps to cut a new version. Follows [Semantic Versioning](https://semver.org/).
 
@@ -15,9 +15,9 @@ This project uses [PyPI Trusted Publishers](https://docs.pypi.org/trusted-publis
 1. **Reserve the project name on PyPI** (one-off):
    - Log in at <https://pypi.org/>.
    - Go to "Your projects" → "Add a pending publisher".
-   - PyPI Project Name: `sharepoint-mcp`
+   - PyPI Project Name: `mcp-server-sharepoint`
    - Owner: `XMV-Solutions-GmbH`
-   - Repository name: `sharepoint-mcp`
+   - Repository name: `mcp-server-sharepoint`
    - Workflow name: `release.yml`
    - Environment name: `pypi`
 2. **Add a `pypi` deployment environment** in this repo (Settings → Environments → New environment "pypi"). Optional: require manual approval for production releases.
@@ -71,7 +71,7 @@ The `release.yml` workflow triggers on `v*` tag push:
 Verify the published artifact:
 
 ```bash
-uvx sharepoint-mcp@X.Y.Z --version
+uvx mcp-server-sharepoint@X.Y.Z --version
 ```
 
 ---

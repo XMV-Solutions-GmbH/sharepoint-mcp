@@ -7,7 +7,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sharepoint-mcp"
+name = "mcp-server-sharepoint"
 version = "0.0.1"
 description = "MCP server for SharePoint document libraries with audit-preserving checkout/checkin."
 readme = "README.md"
@@ -47,7 +47,7 @@ Issues = "https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues"
 Changelog = "https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
-sharepoint-mcp = "sharepoint_mcp.cli:main"
+mcp-server-sharepoint = "sharepoint_mcp.cli:main"
 
 [project.optional-dependencies]
 dev = [

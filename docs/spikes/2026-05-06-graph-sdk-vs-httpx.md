@@ -14,7 +14,7 @@ SPDX-FileContributor: David Koller <david.koller@xmv.de>
 
 ## Question
 
-`sharepoint-mcp` touches ~6 Microsoft Graph endpoints in v0.1: search, drive children, item content, checkout, checkin, discardCheckout (plus `/me` for sign-in verification). Both `msgraph-sdk-python` (the official Kiota-generated SDK) and a hand-written `httpx` client could implement these. Pick one.
+`mcp-server-sharepoint` touches ~6 Microsoft Graph endpoints in v0.1: search, drive children, item content, checkout, checkin, discardCheckout (plus `/me` for sign-in verification). Both `msgraph-sdk-python` (the official Kiota-generated SDK) and a hand-written `httpx` client could implement these. Pick one.
 
 ## Method
 
@@ -31,7 +31,7 @@ Measured by installing each package fresh into an empty venv and inspecting `sit
 | `msgraph-sdk` | **220 MB** | 47 | `msgraph` module alone is 182 MB of generated Kiota code; pulls `cryptography` (15 MB), `aiohttp` (6.3 MB), `azure-*`, `opentelemetry`, `multidict`, `frozenlist`, `propcache`, `yarl`, `urllib3`, `zipp` |
 | `httpx` | **2.4 MB** | 10 | direct deps: `httpcore`, `h11`, `anyio`, `sniffio`, `certifi`, `idna` |
 
-~**92× difference in disk footprint**. For a tool installed via `uvx sharepoint-mcp` and intended to be lightweight, this matters: every transitive dep is also attack surface, install time, and a potential source of supply-chain risk.
+~**92× difference in disk footprint**. For a tool installed via `uvx mcp-server-sharepoint` and intended to be lightweight, this matters: every transitive dep is also attack surface, install time, and a potential source of supply-chain risk.
 
 ## Code comparison: `sp_list`
 

@@ -222,7 +222,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
 
 def _build_server() -> FastMCP:
     """Build and return a FastMCP server with the right tools registered."""
-    server = FastMCP("sharepoint-mcp")
+    server = FastMCP("mcp-server-sharepoint")
     register_read_tools(server)
     if writes_enabled():
         register_write_tools(server)

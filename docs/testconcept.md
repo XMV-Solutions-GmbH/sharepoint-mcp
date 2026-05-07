@@ -2,7 +2,7 @@
 
 # Test Concept
 
-This is the operationalised version of `ENGINEERING_PRINCIPLES.md` § 5 for `sharepoint-mcp`. Read the principles first; this document is the project-specific instantiation.
+This is the operationalised version of `ENGINEERING_PRINCIPLES.md` § 5 for `mcp-server-sharepoint`. Read the principles first; this document is the project-specific instantiation.
 
 ---
 
@@ -21,7 +21,7 @@ The harness layer is the **gate** per `ENGINEERING_PRINCIPLES.md` § 5: no v0.1 
 ## What runs where
 
 - `./tests/run_tests.sh` (default = `unit + integration`) — runs in CI on every PR. No SharePoint credentials needed.
-- `./tests/run_tests.sh harness` — requires `harness` profile token cache (run `uv run sharepoint-mcp login --profile harness` once). Runs from the developer machine; runs in CI as a separate job once `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret is wired (see [#25](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/25)).
+- `./tests/run_tests.sh harness` — requires `harness` profile token cache (run `uv run mcp-server-sharepoint login --profile harness` once). Runs from the developer machine; runs in CI as a separate job once `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret is wired (see [#25](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/25)).
 - `./tests/run_tests.sh all` — unit + integration + harness in one shot.
 
 The `tests/conftest.py` auto-marks tests by their parent directory so `pytest -m unit` / `-m integration` / `-m harness` filter correctly without each test having to apply the marker by hand.
@@ -45,7 +45,7 @@ The `tests/conftest.py` auto-marks tests by their parent directory so `pytest -m
 **Local development**:
 
 ```bash
-uv run sharepoint-mcp login --profile harness
+uv run mcp-server-sharepoint login --profile harness
 ```
 
 Refresh token cached at `~/.cache/sharepoint-mcp/harness/token.json` (mode 0600) on the developer's machine. Survives reboots, lasts ~60–90 days until Microsoft expires the refresh token.
@@ -54,7 +54,7 @@ Refresh token cached at `~/.cache/sharepoint-mcp/harness/token.json` (mode 0600)
 
 The harness CI job receives the harness refresh token via the `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret (plus the optional `SP_TOKEN_PASSPHRASE` if you choose the encrypted-file backend). The job materialises the token cache at the start, runs `./tests/run_tests.sh harness`, and discards the runner.
 
-When the token expires (typically every ~60 days), an admin re-runs `uv run sharepoint-mcp login --profile harness` locally and updates the GitHub secret. There's no automatic refresh-the-secret mechanism — that would require either client-credentials (which we don't use for compliance reasons) or a long-lived service-principal seed (also off the table for v0.1).
+When the token expires (typically every ~60 days), an admin re-runs `uv run mcp-server-sharepoint login --profile harness` locally and updates the GitHub secret. There's no automatic refresh-the-secret mechanism — that would require either client-credentials (which we don't use for compliance reasons) or a long-lived service-principal seed (also off the table for v0.1).
 
 ---
 

@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 #
-# Test runner for sharepoint-mcp. Dispatches to the three test layers
+# Test runner for mcp-server-sharepoint. Dispatches to the three test layers
 # defined in ENGINEERING_PRINCIPLES.md § 5.
 #
 # Usage:

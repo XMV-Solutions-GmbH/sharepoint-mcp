@@ -37,7 +37,7 @@ def _skip_if_no_harness() -> None:
     except AuthRequiredError as exc:
         pytest.skip(
             f"Harness credentials not available: {exc}. "
-            "Run `uv run sharepoint-mcp login --profile harness` to populate.",
+            "Run `uv run mcp-server-sharepoint login --profile harness` to populate.",
         )
 
 

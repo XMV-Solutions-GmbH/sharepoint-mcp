@@ -22,7 +22,7 @@ def test_server_module_importable() -> None:
     from sharepoint_mcp import server
 
     assert callable(server.run)
-    assert server.mcp.name == "sharepoint-mcp"
+    assert server.mcp.name == "mcp-server-sharepoint"
 
 
 def test_cli_version_exits_cleanly() -> None:

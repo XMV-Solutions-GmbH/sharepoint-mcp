@@ -14,7 +14,7 @@ Two entry points:
 - `interactive_login(profile)` — out-of-band path. Drives the full
   Device Code flow, blocks until the human completes (or refuses) the
   prompt, persists the resulting tokens to the configured TokenStore.
-  Intended to be invoked from a CLI subcommand (`sharepoint-mcp
+  Intended to be invoked from a CLI subcommand (`mcp-server-sharepoint
   login`), not from inside an MCP tool call.
 
 This split mirrors how `gh auth login` separates from `gh` runtime
@@ -75,13 +75,13 @@ class AuthRequiredError(RuntimeError):
 
     The MCP tool layer should catch this, surface a clear message to
     the agent (and through it to the user), and stop. Re-authentication
-    happens out of band via `uvx sharepoint-mcp login`.
+    happens out of band via `uvx mcp-server-sharepoint login`.
     """
 
     def __init__(self, profile: str, reason: str) -> None:
         super().__init__(
             f"No usable credentials for profile {profile!r}: {reason}. "
-            f"Run `uvx sharepoint-mcp login --profile {profile}` to sign in.",
+            f"Run `uvx mcp-server-sharepoint login --profile {profile}` to sign in.",
         )
         self.profile = profile
         self.reason = reason
@@ -143,7 +143,7 @@ def _default_prompt(challenge: DeviceCodeChallenge) -> None:
         header = "Opening your browser to complete sign-in."
         instructions = "If it didn't open, paste the URL below into a browser."
     else:
-        header = "Sign in to sharepoint-mcp via the Device Code flow:"
+        header = "Sign in to mcp-server-sharepoint via the Device Code flow:"
         instructions = "Open the URL in a browser and type the code."
 
     print(
