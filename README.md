@@ -139,6 +139,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_share_list(url)` | List existing sharing links on a SharePoint file or folder — id, web_url (the share URL), type, scope, roles. Read-only. Use `sp_share_create` / `sp_share_revoke` for the write side. |
 | `sp_pages_list(site_url)` | List all modern SharePoint Pages (Site Pages) on a site — id, name, title, web_url, description, page_layout, last_modified. |
 | `sp_page_read(page_url)` | Fetch a single SharePoint Page including its canvasLayout (sections, columns, web parts) as raw JSON. `page_url` shape: `https://<host>/sites/<name>/SitePages/<page>.aspx`. |
+| `sp_changes(scope_url, since?)` | Microsoft Graph delta query — returns items in the site's default drive that changed since the optional cursor. First call (no cursor) returns the full item set + an initial cursor. Subsequent calls with the cursor return only created/modified/deleted items since. Cursor is opaque — store it (typically in the agent's conversation memory) and pass it back. Stale cursor surfaces as 410 Gone; drop it and re-sync from scratch. |
 
 #### Non-default libraries
 
