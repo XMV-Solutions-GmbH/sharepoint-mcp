@@ -130,6 +130,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_subsites(parent_site_url)` | List immediate sub-sites under a parent site URL. Recurse on each result's `web_url` to walk deeper. |
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 | `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
+| `sp_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
 
 #### Non-default libraries
 
@@ -144,6 +145,12 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
 | `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
 | `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
+
+#### Recycle bin: list-only, beta endpoint
+
+`sp_trash_list` calls Microsoft Graph's `/beta` endpoint. The site-level recycle-bin listing has not yet been promoted to v1.0; the beta endpoint is stable enough that SharePoint's own web UI / admin center rely on it, but the schema can change. We pin to the documented shape and will migrate to v1.0 when it lands.
+
+Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/restore` action for site-recycle-bin items (only on SharePoint Embedded `fileStorageContainer` recycle bins). Use the SharePoint web UI to restore individual items; we'll add `sp_trash_restore` once Microsoft surfaces the action or we add a SharePoint REST API fallback.
 
 #### Large files
 
