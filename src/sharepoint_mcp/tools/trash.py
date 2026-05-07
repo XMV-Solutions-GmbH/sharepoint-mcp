@@ -128,5 +128,3 @@ def _one_trash_item(entry: dict[str, Any]) -> dict[str, Any]:
         "deleted_from_location": str(entry.get("deletedFromLocation") or ""),
         "deleted_by": deleted_by,
     }
-
-
