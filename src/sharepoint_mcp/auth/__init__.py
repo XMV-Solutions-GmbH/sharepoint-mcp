@@ -31,7 +31,6 @@ import os
 import sys
 import webbrowser
 from collections.abc import Callable
-from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -102,19 +101,6 @@ def _resolve_tenant(tenant: str | None) -> str:
     return env or DEFAULT_AUTHORITY_TENANT
 
 
-def _verification_uri_with_code(uri: str, code: str) -> str:
-    """Append `?otc=<code>` so Microsoft's device-login page pre-fills the code.
-
-    Microsoft's device-login page accepts an `otc` (one-time code) query
-    parameter and auto-fills the input field with it, so the user only
-    has to click and pick an account — no manual code typing.
-    """
-    parts = urlsplit(uri)
-    existing = parts.query
-    new_query = (existing + "&" if existing else "") + urlencode({"otc": code})
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
-
-
 def _has_desktop_session() -> bool:
     """Heuristic: true iff there's likely a usable graphical browser."""
     if sys.platform == "darwin" or sys.platform.startswith("win"):
@@ -125,38 +111,46 @@ def _has_desktop_session() -> bool:
 def _default_prompt(challenge: DeviceCodeChallenge) -> None:
     """Show the Device Code challenge to the human running login.
 
-    On a desktop session (macOS/Windows always, Linux with DISPLAY or
-    WAYLAND_DISPLAY), tries to open the pre-filled verification URL in
-    the default browser. In every case, also prints the URL + code to
-    stderr so headless users (and our background-task captures) get
-    them in the log.
+    Microsoft Identity v2.0's /devicecode does not populate
+    `verification_uri_complete` (RFC 8628 §3.3.1's optional pre-filled
+    URL), so the user has to type the user_code into the page
+    themselves. This matches `az login --use-device-code` and every
+    other OAuth-Device-Code-against-Microsoft tool's UX.
+
+    On a desktop session, tries to open the verification URL
+    automatically so at least the page is one click away. In every
+    case, prints the URL + code to stderr in a copy/paste-friendly
+    format.
     """
-    pre_filled = _verification_uri_with_code(challenge.verification_uri, challenge.user_code)
+    target_uri = challenge.verification_uri_complete or challenge.verification_uri
 
     opened = False
     if _has_desktop_session():
         try:
-            opened = webbrowser.open(pre_filled, new=2)
+            opened = webbrowser.open(target_uri, new=2)
         except webbrowser.Error:
             opened = False
 
-    if opened:
-        msg = (
-            "\nOpening your browser to complete sign-in.\n"
-            f"  If it didn't open, visit: {pre_filled}\n"
-            f"  (Code is pre-filled: {challenge.user_code})\n"
-            "\nWaiting for sign-in..."
-        )
-    else:
-        msg = (
-            "\nTo sign in to sharepoint-mcp:\n"
-            f"  1. Open: {pre_filled}\n"
-            f"     (the code {challenge.user_code} is already in the URL)\n"
-            "  2. Pick the M365 account you want to authorise.\n"
-            "\nWaiting for sign-in..."
-        )
+    code_line = f"     Code:  {challenge.user_code}"
+    url_line = f"     URL:   {challenge.verification_uri}"
 
-    print(msg, file=sys.stderr, flush=True)
+    if challenge.verification_uri_complete:
+        # Provider gave us a pre-filled URL; the code line is redundant
+        # but still useful for transcribing across devices.
+        url_line = f"     URL:   {challenge.verification_uri_complete}"
+
+    if opened:
+        header = "Opening your browser to complete sign-in."
+        instructions = "If it didn't open, paste the URL below into a browser."
+    else:
+        header = "Sign in to sharepoint-mcp via the Device Code flow:"
+        instructions = "Open the URL in a browser and type the code."
+
+    print(
+        f"\n{header}\n{instructions}\n\n{url_line}\n{code_line}\n\nWaiting for sign-in...",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def get_token(

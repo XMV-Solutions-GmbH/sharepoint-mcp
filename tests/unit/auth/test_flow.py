@@ -39,6 +39,7 @@ TOKEN_URL = f"https://login.microsoftonline.com/{TENANT}/oauth2/v2.0/token"
 
 @respx.mock
 def test_request_device_code_returns_secret_and_challenge() -> None:
+    """Microsoft Identity v2.0 — no verification_uri_complete in response."""
     respx.post(DEVICE_CODE_URL).respond(
         json={
             "device_code": "DC-XYZ",
@@ -53,7 +54,26 @@ def test_request_device_code_returns_secret_and_challenge() -> None:
     assert device_code == "DC-XYZ"
     assert challenge.user_code == "ABC-123"
     assert challenge.verification_uri == "https://microsoft.com/devicelogin"
+    assert challenge.verification_uri_complete is None
     assert challenge.interval == 5
+
+
+@respx.mock
+def test_request_device_code_captures_verification_uri_complete_if_provided() -> None:
+    """RFC 8628 §3.3.1 — some OAuth providers populate this; we capture it."""
+    respx.post(DEVICE_CODE_URL).respond(
+        json={
+            "device_code": "DC",
+            "user_code": "ABC123",
+            "verification_uri": "https://example.com/devicelogin",
+            "verification_uri_complete": "https://example.com/devicelogin?code=ABC123",
+            "expires_in": 900,
+            "interval": 5,
+            "message": "",
+        }
+    )
+    _, challenge = request_device_code(client_id=CLIENT_ID, tenant=TENANT)
+    assert challenge.verification_uri_complete == "https://example.com/devicelogin?code=ABC123"
 
 
 @respx.mock

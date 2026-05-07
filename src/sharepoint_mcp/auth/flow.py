@@ -94,10 +94,18 @@ class DeviceCodeChallenge:
     Returned from `request_device_code()` so the caller can surface
     `user_code` + `verification_uri` to the human (via stderr, an MCP
     error response, or wherever the calling layer chooses).
+
+    `verification_uri_complete` is RFC 8628 §3.3.1 — an optional URL
+    with the user_code already embedded so the user only has to click
+    and pick an account. Microsoft Identity v2.0 doesn't currently
+    populate this for /devicecode, so it's almost always None. We
+    capture it anyway in case Microsoft adds it later or for non-MS
+    OAuth providers that do support it.
     """
 
     user_code: str
     verification_uri: str
+    verification_uri_complete: str | None
     expires_at: float
     interval: int
     message: str
@@ -154,11 +162,13 @@ def request_device_code(
             client.close()
 
     expires_in = float(payload["expires_in"])
+    uri_complete_raw = payload.get("verification_uri_complete")
     return (
         str(payload["device_code"]),
         DeviceCodeChallenge(
             user_code=str(payload["user_code"]),
             verification_uri=str(payload["verification_uri"]),
+            verification_uri_complete=str(uri_complete_raw) if uri_complete_raw else None,
             expires_at=time.time() + expires_in,
             interval=int(payload.get("interval", 5)),
             message=str(payload.get("message", "")),
