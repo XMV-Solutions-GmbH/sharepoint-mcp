@@ -135,6 +135,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_list_columns(list_url)` | Schema of a SharePoint List — column definitions (name, type, required, hidden, etc.). `list_url` shape: `https://<host>/sites/<name>/Lists/<list-name>`. |
 | `sp_list_items(list_url, filter?, top?)` | List items in a SharePoint List with full fields expansion. `filter` is an optional OData expression like `"fields/Status eq 'Open'"`. |
 | `sp_get_item(list_url, item_id)` | Fetch a single SharePoint List item with all expanded fields. |
+| `sp_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope}`), and `inherited` flag. Read-only. |
 
 #### Non-default libraries
 

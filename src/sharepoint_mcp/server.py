@@ -41,6 +41,7 @@ from sharepoint_mcp.tools.lists import list_items as _do_list_items
 from sharepoint_mcp.tools.lists import lists as _do_lists
 from sharepoint_mcp.tools.lists import update_item as _do_update_item
 from sharepoint_mcp.tools.open_file import open_file as _do_open
+from sharepoint_mcp.tools.permissions import permissions as _do_permissions
 from sharepoint_mcp.tools.publish import publish as _do_publish
 from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.release import release as _do_release
@@ -295,6 +296,27 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_get_item(list_url: str, item_id: str) -> dict[str, Any]:
         return _do_get_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="List SharePoint Permissions",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "List who has access to a SharePoint file, folder, or site. "
+            "Pass a site URL for site-level permissions or any item URL "
+            "(file or folder) for that item's permissions. Returns each "
+            "permission entry with id, roles (read/write/owner), grantee "
+            "({type, display_name, email, link_type, link_scope}), and "
+            "inherited flag. Read-only — does not modify any permission "
+            "state. Use this to answer 'who can see/edit this?' before "
+            "suggesting changes or sharing links."
+        ),
+    )
+    def sp_permissions(url: str) -> list[dict[str, Any]]:
+        return _do_permissions(url, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
