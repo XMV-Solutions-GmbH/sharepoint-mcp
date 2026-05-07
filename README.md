@@ -130,6 +130,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_subsites(parent_site_url)` | List immediate sub-sites under a parent site URL. Recurse on each result's `web_url` to walk deeper. |
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 | `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
+| `sp_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
 
 #### Non-default libraries
 
@@ -144,6 +145,11 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
 | `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
 | `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
+| `sp_trash_restore(site_url, item_id)` | Restore an item from the site's recycle bin to its original location. `item_id` comes from `sp_trash_list`. Not destructive (recovers data) but does change observable site state. *Uses Graph beta endpoint — see note below.* |
+
+#### Recycle bin: beta endpoint
+
+`sp_trash_list` and `sp_trash_restore` currently call Microsoft Graph's `/beta` endpoints — the site-level recycle-bin API has not yet been promoted to v1.0. Stable enough that production tools (SharePoint web UI, admin center) rely on it, but Microsoft reserves the right to change the schema. We pin to the documented beta shape and will migrate to v1.0 when it lands.
 
 #### Large files
 
