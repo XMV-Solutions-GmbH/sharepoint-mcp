@@ -32,7 +32,12 @@ from typing import Any
 import httpx
 
 from sharepoint_mcp.auth import get_token
-from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
+from sharepoint_mcp.tools._common import (
+    GRAPH_BASE,
+    parse_sharepoint_url,
+    resolve_drive_item_full,
+    resolve_site_id,
+)
 
 
 def publish(
@@ -81,7 +86,6 @@ def publish(
         )
 
     hostname, site_path, folder_path = parse_sharepoint_url(target_folder_url)
-    target_path = f"{folder_path}/{filename}" if folder_path else filename
 
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}
@@ -89,13 +93,22 @@ def publish(
     try:
         site_id = resolve_site_id(client, hostname, site_path, headers=headers)
 
-        # Check if target already exists. We use HEAD-equivalent (GET on
-        # the metadata endpoint, which is cheap) rather than HEAD itself
-        # because Microsoft Graph doesn't reliably support HEAD.
-        existence_response = client.get(
-            f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{target_path}",
-            headers=headers,
-        )
+        # Resolve the target folder. If folder_path is empty, the target
+        # is the default drive's root on the site. Library fallback in
+        # resolve_drive_item_full transparently handles non-default
+        # libraries (Site Assets, custom document libraries).
+        if folder_path:
+            folder = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
+            drive_id = folder["parentReference"]["driveId"]
+            folder_id = folder["id"]
+            existence_url = f"{GRAPH_BASE}/drives/{drive_id}/items/{folder_id}:/{filename}"
+            upload_url = f"{GRAPH_BASE}/drives/{drive_id}/items/{folder_id}:/{filename}:/content"
+        else:
+            existence_url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{filename}"
+            upload_url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{filename}:/content"
+
+        # Check if target file already exists.
+        existence_response = client.get(existence_url, headers=headers)
         if existence_response.status_code == 200:
             raise FileExistsError(
                 f"Target already exists at {target_folder_url!r}/{filename!r}. "
@@ -108,7 +121,7 @@ def publish(
         # Upload via PUT /content. Microsoft creates the driveItem on the
         # fly. Response is the full driveItem.
         upload_response = client.put(
-            f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{target_path}:/content",
+            upload_url,
             headers=headers,
             content=src.read_bytes(),
         )

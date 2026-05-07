@@ -99,10 +99,14 @@ def test_publish_into_subfolder(store_with_fresh_token: None, tmp_path: Path) ->
     src.write_bytes(b"<docx-bytes>")
 
     _mock_site_lookup()
-    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/drafts/policy_draft.docx").respond(404)
-    respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/drafts/policy_draft.docx:/content"
-    ).respond(json={"name": "policy_draft.docx", "webUrl": "x", "eTag": "y", "size": 12})
+    # New flow: resolve target folder driveItem, then existence + upload via /drives/...
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/drafts").respond(
+        json={"id": "FID", "name": "drafts", "parentReference": {"driveId": "DID"}},
+    )
+    respx.get(f"{GRAPH_BASE}/drives/DID/items/FID:/policy_draft.docx").respond(404)
+    respx.put(f"{GRAPH_BASE}/drives/DID/items/FID:/policy_draft.docx:/content").respond(
+        json={"name": "policy_draft.docx", "webUrl": "x", "eTag": "y", "size": 12}
+    )
 
     result = publish(
         str(src),

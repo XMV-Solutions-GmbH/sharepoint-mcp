@@ -129,6 +129,11 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_sites(query?)` | Discover SharePoint sites the user can see. `query` is a free-text site-name search; omit to list all. Useful as the agent's starting point when no site URL is known yet. |
 | `sp_subsites(parent_site_url)` | List immediate sub-sites under a parent site URL. Recurse on each result's `web_url` to walk deeper. |
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
+| `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
+
+#### Non-default libraries
+
+URLs into **non-default document libraries** (Site Assets, Style Library, custom libraries) work transparently across `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_publish`, etc. The resolver tries the default Shared Documents drive first; on a 404, it lists the site's drives, matches the URL's first path segment to a library name, and retries against that library. One extra Graph round-trip per first-look-up at a non-default library — acceptable cost for the convenience.
 
 ### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
 

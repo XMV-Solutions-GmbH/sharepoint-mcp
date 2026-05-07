@@ -28,7 +28,12 @@ import httpx
 from sharepoint_mcp import checkout_registry as _registry_module
 from sharepoint_mcp.auth import get_token
 from sharepoint_mcp.checkout_registry import CheckedOutEntry, CheckoutRegistry
-from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
+from sharepoint_mcp.tools._common import (
+    GRAPH_BASE,
+    parse_sharepoint_url,
+    resolve_drive_item_full,
+    resolve_site_id,
+)
 
 WORKING_DIR_NAME = "working"
 
@@ -87,13 +92,9 @@ def open_file(
 
         # Look up the driveItem to get id, drive_id, ETag, and the
         # canonical filename. Done before /checkout so we can fail
-        # cleanly on 404 without leaving a dangling lock.
-        item_response = client.get(
-            f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{item_path}",
-            headers=headers,
-        )
-        item_response.raise_for_status()
-        item = item_response.json()
+        # cleanly on 404 without leaving a dangling lock. The full
+        # resolver handles non-default libraries transparently.
+        item = resolve_drive_item_full(client, site_id, item_path, headers=headers)
         drive_id = item["parentReference"]["driveId"]
         item_id = item["id"]
         etag = str(item.get("eTag") or item.get("@odata.etag") or "")

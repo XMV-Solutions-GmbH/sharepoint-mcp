@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from sharepoint_mcp.auth import AuthRequiredError, get_token
-from sharepoint_mcp.tools.sites import followed_sites, sites, subsites
+from sharepoint_mcp.tools.sites import drives, followed_sites, sites, subsites
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -74,3 +74,20 @@ def test_followed_sites_returns_list() -> None:
 def test_subsites_validation_does_not_need_harness() -> None:
     with pytest.raises(ValueError, match="non-empty parent_site_url"):
         subsites("", profile=HARNESS_PROFILE)
+
+
+def test_drives_lists_at_least_default_library() -> None:
+    """Every SharePoint site has at least the default 'Documents' library."""
+    _skip_if_no_harness()
+    result = drives(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    names = {d["name"] for d in result}
+    # Default doc library; SharePoint Online localises this in some
+    # tenants but the harness tenant is en-US.
+    assert any(n in {"Documents", "Shared Documents"} for n in names), names
+
+
+def test_drives_validation_does_not_need_harness() -> None:
+    with pytest.raises(ValueError, match="non-empty site_url"):
+        drives("", profile=HARNESS_PROFILE)

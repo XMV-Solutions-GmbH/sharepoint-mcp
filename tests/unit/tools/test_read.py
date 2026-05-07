@@ -50,9 +50,23 @@ SITE_PATH = "/sites/foo"
 SITE_ID = "contoso.sharepoint.com,site-guid,web-guid"
 
 
+DRIVE_ID = "b!drive"
+ITEM_ID = "01ITEM"
+
+
 def _mock_site_lookup() -> respx.Route:
     return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(
         json={"id": SITE_ID},
+    )
+
+
+def _mock_item_lookup(item_path: str) -> respx.Route:
+    return respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/{item_path}").respond(
+        json={
+            "id": ITEM_ID,
+            "name": item_path.rsplit("/", 1)[-1],
+            "parentReference": {"driveId": DRIVE_ID},
+        },
     )
 
 
@@ -61,8 +75,9 @@ def test_read_file_writes_temp_file_with_content(store_with_fresh_token: None) -
     del store_with_fresh_token
     payload = b"# README\n\nharness seed content\n"
     _mock_site_lookup()
+    _mock_item_lookup("README.md")
     respx.get(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/README.md:/content",
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content",
     ).respond(content=payload)
 
     path = read_file(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/README.md")
@@ -77,8 +92,9 @@ def test_read_file_writes_temp_file_with_content(store_with_fresh_token: None) -
 def test_read_file_subfolder_path(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site_lookup()
+    _mock_item_lookup("policies/iso.docx")
     respx.get(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/policies/iso.docx:/content",
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content",
     ).respond(content=b"docx-bytes-here")
 
     path = read_file(
@@ -95,8 +111,9 @@ def test_read_file_subfolder_path(store_with_fresh_token: None) -> None:
 def test_read_file_sends_bearer_on_both_calls(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     site_route = _mock_site_lookup()
+    _mock_item_lookup("x.txt")
     content_route = respx.get(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/x.txt:/content",
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content",
     ).respond(content=b"x")
     path = read_file(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/x.txt")
     try:
@@ -108,11 +125,14 @@ def test_read_file_sends_bearer_on_both_calls(store_with_fresh_token: None) -> N
 
 @respx.mock
 def test_read_file_propagates_404(store_with_fresh_token: None) -> None:
+    """The item lookup itself 404s now (used to be the content endpoint).
+    Library fallback adds one extra /drives lookup we mock to return empty."""
     del store_with_fresh_token
     _mock_site_lookup()
-    respx.get(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing.txt:/content",
-    ).respond(404, json={"error": {"code": "itemNotFound"}})
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing.txt").respond(
+        404, json={"error": {"code": "itemNotFound"}}
+    )
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drives").respond(json={"value": []})
     with pytest.raises(httpx.HTTPStatusError):
         read_file(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/missing.txt")
 

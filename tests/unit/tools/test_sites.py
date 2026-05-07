@@ -16,7 +16,9 @@ from sharepoint_mcp.auth.tokens import CachedToken
 from sharepoint_mcp.tools._common import GRAPH_BASE
 from sharepoint_mcp.tools.sites import (
     _extract_sites,
+    _one_drive,
     _one_site,
+    drives,
     followed_sites,
     sites,
     subsites,
@@ -247,3 +249,66 @@ def test_one_site_prefers_displayName_over_name() -> None:
 def test_one_site_falls_back_to_name_when_no_displayName() -> None:
     out = _one_site({"name": "Internal Only"})
     assert out["name"] == "Internal Only"
+
+
+# ---------------------------------------------------------------------
+# drives()
+# ---------------------------------------------------------------------
+
+
+@respx.mock
+def test_drives_lists_libraries_on_site(store_with_fresh_token: None) -> None:
+    del store_with_fresh_token
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:/sites/foo").respond(json={"id": SITE_ID})
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drives").respond(
+        json={
+            "value": [
+                {
+                    "id": "drive-1",
+                    "name": "Documents",
+                    "webUrl": "https://x/sites/foo/Shared Documents",
+                    "driveType": "documentLibrary",
+                    "quota": {"total": 1000, "used": 50},
+                },
+                {
+                    "id": "drive-2",
+                    "name": "Site Assets",
+                    "webUrl": "https://x/sites/foo/SiteAssets",
+                    "driveType": "documentLibrary",
+                },
+            ],
+        },
+    )
+    result = drives(f"https://{SITE_HOST}/sites/foo")
+    assert len(result) == 2
+    assert result[0]["name"] == "Documents"
+    assert result[0]["drive_type"] == "documentLibrary"
+    assert result[0]["quota_total"] == 1000
+    assert result[1]["name"] == "Site Assets"
+    assert result[1]["quota_total"] == 0  # missing quota ok
+
+
+def test_drives_rejects_empty_url() -> None:
+    with pytest.raises(ValueError, match="non-empty site_url"):
+        drives("")
+
+
+def test_drives_rejects_file_url() -> None:
+    with pytest.raises(ValueError, match="expects a site URL"):
+        drives(f"https://{SITE_HOST}/sites/foo/Shared Documents/policy.docx")
+
+
+def test_one_drive_normalises_missing_fields() -> None:
+    out = _one_drive({})
+    assert out["id"] == ""
+    assert out["name"] == ""
+    assert out["drive_type"] == ""
+    assert out["quota_total"] == 0
+    assert out["quota_used"] == 0
+
+
+def test_one_drive_handles_non_dict_quota() -> None:
+    """If Graph returns a non-dict quota field, don't crash."""
+    out = _one_drive({"id": "x", "name": "y", "quota": None})
+    assert out["quota_total"] == 0
+    assert out["quota_used"] == 0

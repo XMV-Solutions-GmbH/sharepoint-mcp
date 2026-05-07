@@ -32,7 +32,12 @@ from typing import Any
 import httpx
 
 from sharepoint_mcp.auth import get_token
-from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
+from sharepoint_mcp.tools._common import (
+    GRAPH_BASE,
+    parse_sharepoint_url,
+    resolve_drive_item_full,
+    resolve_site_id,
+)
 
 
 def list_folder(
@@ -71,7 +76,12 @@ def list_folder(
         site_id = resolve_site_id(client, hostname, site_path, headers=headers)
 
         if folder_path:
-            children_url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{folder_path}:/children"
+            # Resolve via drive-item helper so non-default libraries
+            # (SiteAssets, custom libraries) work transparently.
+            item = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
+            drive_id = item["parentReference"]["driveId"]
+            item_id = item["id"]
+            children_url = f"{GRAPH_BASE}/drives/{drive_id}/items/{item_id}/children"
         else:
             children_url = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children"
 

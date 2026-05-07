@@ -43,7 +43,12 @@ from typing import Any
 import httpx
 
 from sharepoint_mcp.auth import get_token
-from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url, resolve_site_id
+from sharepoint_mcp.tools._common import (
+    GRAPH_BASE,
+    list_site_drives,
+    parse_sharepoint_url,
+    resolve_site_id,
+)
 
 
 def sites(
@@ -117,6 +122,57 @@ def subsites(
     finally:
         if http is None:
             client.close()
+
+
+def drives(
+    site_url: str,
+    *,
+    profile: str = "default",
+    http: httpx.Client | None = None,
+) -> list[dict[str, Any]]:
+    """List the document libraries (drives) on a SharePoint site.
+
+    `site_url` is the human-readable site URL
+    (`https://contoso.sharepoint.com/sites/foo`). Returns each drive
+    with id, name, web_url, description, drive_type ("documentLibrary"
+    for the typical case), and quota info when present.
+
+    Together with `sp_sites`, this lets the agent discover which
+    library to read from on a given site without having to know the
+    library names upfront.
+    """
+    if not site_url or not site_url.strip():
+        raise ValueError("sp_drives requires a non-empty site_url")
+    hostname, site_path, item_path = parse_sharepoint_url(site_url)
+    if item_path:
+        raise ValueError(
+            f"sp_drives expects a site URL, not a file/folder URL "
+            f"(got {site_url!r}; item path {item_path!r}).",
+        )
+
+    token = get_token(profile)
+    headers = {"Authorization": f"Bearer {token}"}
+    client = http if http is not None else httpx.Client(timeout=30.0)
+    try:
+        site_id = resolve_site_id(client, hostname, site_path, headers=headers)
+        raw = list_site_drives(client, site_id, headers=headers)
+    finally:
+        if http is None:
+            client.close()
+    return [_one_drive(d) for d in raw]
+
+
+def _one_drive(entry: dict[str, Any]) -> dict[str, Any]:
+    quota = entry.get("quota") or {}
+    return {
+        "id": str(entry.get("id") or ""),
+        "name": str(entry.get("name") or ""),
+        "web_url": str(entry.get("webUrl") or ""),
+        "description": str(entry.get("description") or ""),
+        "drive_type": str(entry.get("driveType") or ""),
+        "quota_total": int(quota.get("total") or 0) if isinstance(quota, dict) else 0,
+        "quota_used": int(quota.get("used") or 0) if isinstance(quota, dict) else 0,
+    }
 
 
 def followed_sites(
