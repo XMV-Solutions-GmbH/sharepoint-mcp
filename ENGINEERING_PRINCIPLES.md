@@ -213,6 +213,19 @@ When deriving an issue backlog from a concept document for an AI-driven project:
 - **No `git config` modification without explicit human request.**
 - Prefer creating new commits over amending. Amend only on un-pushed commits and only with explicit reason (e.g. fixing the author of a fresh initial commit).
 
+### CI vigilance: watch every push, fix red immediately
+
+Every `git push` (direct-to-trunk or via merging a PR) implicitly creates a CI run. The committer's job does not end at "push succeeded" — it ends at **"CI for that commit went green"**.
+
+Operationally:
+
+- **Watch the CI run** for the commit you just pushed. `gh run watch <id> --exit-status` blocks until completion and exits non-zero on failure; use it.
+- **Red CI on the trunk branch is a P0 incident.** The person who broke it fixes it before doing any other work. If a fix is non-trivial, **revert the breaking commit** rather than leaving trunk red while you investigate. Trunk red blocks every other contributor's ability to merge.
+- **Don't assume CI agrees with you because the local tests pass.** CI runs different OS, different Python, different env-var defaults, fresh-clone state. A "works on my machine" with red CI is still red CI.
+- **Notifications can lag.** If GitHub emails you about a CI failure five minutes after you've pushed three more commits, check the SHA the email references — it may already be old news. But the converse also holds: if the email is recent and the SHA matches your latest push, react.
+
+This is the discipline that keeps trunk deployable per § 13. Without it, "PR is always in a deployable state" degrades to "PR is in a deployable state until something quietly broke and nobody noticed."
+
 ---
 
 ## 7. Documentation baseline
@@ -341,13 +354,16 @@ From the moment PRs are introduced, the following rules apply.
 
 Every PR opened for review represents work that **could merge as-is**:
 
-- All tests pass — unit, integration, end-to-end (the test harness from § 5).
+- **CI is green on the PR's head commit at merge time.** Not "was green earlier and probably still is", not "would be green if the flake settled" — actively green when the merge button is clicked. Branch protection should require this; if it doesn't, the PR author manually verifies it.
+- All tests pass — unit, integration, harness (the three layers from § 5).
 - Documentation is updated alongside the change (App Concept, Architecture, Secrets, README, TODO, ISSUES). No new `(TBD)` markers without a corresponding follow-up TODO.
 - New behaviour either has tests, or the PR explicitly notes why not.
 - No half-finished work, no commented-out blocks, no dead branches.
 - Test automation has been **extended** for any new behaviour — adding a feature without extending the harness counts as half-finished.
 
 A PR is not a "save point" or a "share-with-the-team-for-feedback" mechanism. It's a proposal to merge into trunk. Use draft PRs explicitly when you want to share work-in-progress.
+
+After merge, see § 6 "CI vigilance" — the post-merge CI run on trunk is the committer's responsibility too, not just the pre-merge one on the PR branch.
 
 ### Four-eyes review is a separate concern from PR discipline
 
