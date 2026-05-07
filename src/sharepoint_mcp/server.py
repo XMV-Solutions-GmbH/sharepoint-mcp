@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
+from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.search import search as _do_search
 
 PROFILE_ENV = "SP_PROFILE"
@@ -83,6 +84,24 @@ def sp_search(
 )
 def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
     return _do_list(url, limit=limit, profile=_get_profile())
+
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Read SharePoint File",
+        readOnlyHint=True,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    description=(
+        "Download a SharePoint file's content to a local temp file. Returns the "
+        "absolute path of the temp file with the original extension preserved. "
+        "Read-only — does NOT acquire a checkout/lock; use sp_open for that. "
+        "`url` is the file's human-readable web URL (e.g. from sp_search hits)."
+    ),
+)
+def sp_read(url: str) -> str:
+    return _do_read(url, profile=_get_profile())
 
 
 def run() -> None:

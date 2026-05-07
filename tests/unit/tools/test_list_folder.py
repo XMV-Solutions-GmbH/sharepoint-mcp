@@ -13,12 +13,8 @@ import pytest
 import respx
 
 from sharepoint_mcp.auth.tokens import CachedToken
-from sharepoint_mcp.tools.list_folder import (
-    GRAPH_BASE,
-    _extract_items,
-    _parse_sharepoint_url,
-    list_folder,
-)
+from sharepoint_mcp.tools._common import GRAPH_BASE, parse_sharepoint_url
+from sharepoint_mcp.tools.list_folder import _extract_items, list_folder
 
 
 class _MemStore:
@@ -49,12 +45,12 @@ def store_with_fresh_token(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 # ---------------------------------------------------------------------
-# _parse_sharepoint_url
+# parse_sharepoint_url
 # ---------------------------------------------------------------------
 
 
 def test_parse_site_url_only() -> None:
-    assert _parse_sharepoint_url("https://contoso.sharepoint.com/sites/foo") == (
+    assert parse_sharepoint_url("https://contoso.sharepoint.com/sites/foo") == (
         "contoso.sharepoint.com",
         "/sites/foo",
         "",
@@ -63,40 +59,40 @@ def test_parse_site_url_only() -> None:
 
 def test_parse_site_url_with_default_library() -> None:
     """Library segment 'Shared Documents' is stripped."""
-    assert _parse_sharepoint_url(
+    assert parse_sharepoint_url(
         "https://contoso.sharepoint.com/sites/foo/Shared Documents",
     ) == ("contoso.sharepoint.com", "/sites/foo", "")
 
 
 def test_parse_site_url_with_default_library_url_encoded() -> None:
     """%20-encoded 'Shared Documents' is also stripped."""
-    assert _parse_sharepoint_url(
+    assert parse_sharepoint_url(
         "https://contoso.sharepoint.com/sites/foo/Shared%20Documents",
     ) == ("contoso.sharepoint.com", "/sites/foo", "")
 
 
 def test_parse_folder_under_default_library() -> None:
-    assert _parse_sharepoint_url(
+    assert parse_sharepoint_url(
         "https://contoso.sharepoint.com/sites/foo/Shared Documents/policies",
     ) == ("contoso.sharepoint.com", "/sites/foo", "policies")
 
 
 def test_parse_nested_folder() -> None:
-    assert _parse_sharepoint_url(
+    assert parse_sharepoint_url(
         "https://contoso.sharepoint.com/sites/foo/Shared Documents/policies/iso27001",
     ) == ("contoso.sharepoint.com", "/sites/foo", "policies/iso27001")
 
 
 def test_parse_teams_url() -> None:
     """Teams sites use /teams/<name> instead of /sites/<name>."""
-    assert _parse_sharepoint_url(
+    assert parse_sharepoint_url(
         "https://contoso.sharepoint.com/teams/eng",
     ) == ("contoso.sharepoint.com", "/teams/eng", "")
 
 
 def test_parse_rejects_relative_url() -> None:
     with pytest.raises(ValueError, match="absolute URL"):
-        _parse_sharepoint_url("/sites/foo")
+        parse_sharepoint_url("/sites/foo")  # raises from _common, not list_folder
 
 
 # ---------------------------------------------------------------------
