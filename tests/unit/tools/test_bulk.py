@@ -145,7 +145,7 @@ def test_save_many_passes_comment_and_version(monkeypatch: pytest.MonkeyPatch) -
         return {"version_id": "1.0", "etag": "e", "web_url": url}
 
     monkeypatch.setattr(bulk, "_do_save", fake_save)
-    ops = [
+    ops: list[bulk.SaveOperation] = [
         {"url": "https://x/a", "comment": "fix typo", "version": "minor"},
         {"url": "https://x/b", "comment": "publish", "version": "major"},
         {"url": "https://x/c", "comment": "tweak"},  # version defaults to minor
@@ -168,7 +168,7 @@ def test_save_many_rejects_invalid_version_per_item(
         return {"version_id": "1.0", "etag": "e", "web_url": "x"}
 
     monkeypatch.setattr(bulk, "_do_save", fake_save)
-    ops = [
+    ops: list[bulk.SaveOperation] = [
         {"url": "https://x/a", "comment": "ok", "version": "minor"},
         {"url": "https://x/b", "comment": "bad", "version": "huge"},
     ]
