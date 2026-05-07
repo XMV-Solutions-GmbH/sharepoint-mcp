@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-*(no entries — most recent commits land under v0.1.0 once that release is cut)*
+No entries yet — most recent commits land under v0.1.0 once that release is cut.
 
 ## [v0.1.0] — pending
 

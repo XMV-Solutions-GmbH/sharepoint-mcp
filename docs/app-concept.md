@@ -288,7 +288,7 @@ Deferred to v0.2:
 >
 > - `msgraph-sdk-python` vs raw `httpx` — raw `httpx`. See [docs/spikes/2026-05-06-graph-sdk-vs-httpx.md](spikes/2026-05-06-graph-sdk-vs-httpx.md). Footprint difference is ~92× (220 MB → 2.4 MB), the SDK fights our keyring-owned auth contract, and the 6 endpoints we touch don't justify a generic typed client.
 > - Token storage on headless Linux — **three-tier**: `keyring` when real, `PlainFileTokenStore` (mode 0600) as default fallback, `EncryptedFileTokenStore` opt-in via `SP_TOKEN_PASSPHRASE`. See [docs/spikes/2026-05-06-keyring-vs-encrypted-file.md](spikes/2026-05-06-keyring-vs-encrypted-file.md). Auto-detect at first use; `SP_TOKEN_STORE=keyring|file|encrypted-file` to override. **No env vars needed for the typical install.**
-
+>
 > **Resolved 2026-05-07:**
 >
 > - Working-directory cleanup policy on crash — **persistent registry + explicit `sp_release`** for v0.1; no TTL, no automatic server-side reconciliation. See [docs/spikes/2026-05-07-working-dir-cleanup.md](spikes/2026-05-07-working-dir-cleanup.md). The registry survives crashes; `sp_status` shows what was open; the agent / human chooses to resume or release.
@@ -296,4 +296,4 @@ Deferred to v0.2:
 
 ### Still open
 
-*(none — all spike questions resolved for v0.1)*
+All spike questions resolved for v0.1. Future spikes track separately under the v0.2 milestone when surfaced.
