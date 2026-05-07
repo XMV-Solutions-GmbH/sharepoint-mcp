@@ -33,6 +33,11 @@ import httpx
 from sharepoint_mcp.auth import get_token
 from sharepoint_mcp.checkout_registry import CheckoutRegistry
 from sharepoint_mcp.tools._common import GRAPH_BASE
+from sharepoint_mcp.tools._upload import (
+    StaleUploadSessionError,
+    chunked_upload_threshold_bytes,
+    upload_resumable,
+)
 
 VersionLevel = Literal["minor", "major"]
 
@@ -99,19 +104,39 @@ def save(
     auth_headers = {"Authorization": f"Bearer {token}"}
     client = http if http is not None else httpx.Client(timeout=120.0, follow_redirects=True)
     try:
-        # 1) Upload content with If-Match for stale-detection
-        put_response = client.put(
-            f"{GRAPH_BASE}/drives/{entry.drive_id}/items/{entry.item_id}/content",
-            headers={**auth_headers, "If-Match": entry.etag},
-            content=local_file.read_bytes(),
-        )
-        if put_response.status_code == 412:
-            raise StaleWriteError(
-                f"File changed under us between sp_open and sp_save for {url!r}. "
-                "Call sp_release then sp_open again to reconcile.",
+        # 1) Upload content. Single-shot PUT for files under the chunked
+        #    threshold (default 100 MB; configurable); resumable upload
+        #    session for larger files (Graph caps single-shot at 250 MB).
+        threshold = chunked_upload_threshold_bytes()
+        file_size = local_file.stat().st_size
+        if file_size > threshold:
+            try:
+                upload = upload_resumable(
+                    client,
+                    drive_id=entry.drive_id,
+                    item_id=entry.item_id,
+                    local_file=local_file,
+                    etag=entry.etag,
+                    auth_headers=auth_headers,
+                )
+            except StaleUploadSessionError as exc:
+                raise StaleWriteError(
+                    f"File changed under us between sp_open and sp_save for {url!r}. "
+                    "Call sp_release then sp_open again to reconcile.",
+                ) from exc
+        else:
+            put_response = client.put(
+                f"{GRAPH_BASE}/drives/{entry.drive_id}/items/{entry.item_id}/content",
+                headers={**auth_headers, "If-Match": entry.etag},
+                content=local_file.read_bytes(),
             )
-        put_response.raise_for_status()
-        upload = put_response.json()
+            if put_response.status_code == 412:
+                raise StaleWriteError(
+                    f"File changed under us between sp_open and sp_save for {url!r}. "
+                    "Call sp_release then sp_open again to reconcile.",
+                )
+            put_response.raise_for_status()
+            upload = put_response.json()
 
         # 2) Checkin (releases the lock)
         checkin_body: dict[str, Any] = {"comment": comment}

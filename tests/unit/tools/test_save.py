@@ -222,3 +222,90 @@ def test_save_500_propagates(store_with_fresh_token: None, registry_with_seed: P
     respx.put(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(500)
     with pytest.raises(httpx.HTTPStatusError):
         save(URL, comment="updated", version="minor")
+
+
+# ---------------------------------------------------------------------
+# Resumable upload path-switching (#38)
+# ---------------------------------------------------------------------
+
+
+@respx.mock
+def test_save_uses_resumable_upload_when_file_exceeds_threshold(
+    store_with_fresh_token: None,
+    registry_with_seed: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """File larger than the threshold goes through createUploadSession."""
+    del store_with_fresh_token
+    monkeypatch.setenv("SP_CHUNKED_UPLOAD_THRESHOLD_MB", "1")  # 1 MB threshold
+    work_file = registry_with_seed
+    work_file.write_bytes(b"\x00" * (2 * 1024 * 1024))  # 2 MB
+
+    # Single-shot route should NOT fire
+    single_shot = respx.put(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content"
+    ).respond(200)
+    create_session = respx.post(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/createUploadSession",
+    ).respond(json={"uploadUrl": "https://upload.example/abc"})
+    respx.put("https://upload.example/abc").respond(
+        201,
+        json={"id": ITEM_ID, "eTag": '"new,1"', "webUrl": URL},
+    )
+    respx.post(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/checkin").respond(204)
+    respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/versions").respond(
+        json={"value": [{"id": "5.0"}]}
+    )
+
+    result = save(URL, comment="big upload", version="minor")
+    assert single_shot.call_count == 0
+    assert create_session.call_count == 1
+    assert result["version_id"] == "5.0"
+    assert result["etag"] == '"new,1"'
+
+
+@respx.mock
+def test_save_uses_single_shot_when_file_under_threshold(
+    store_with_fresh_token: None,
+    registry_with_seed: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """File at-or-below the threshold uses single-shot PUT."""
+    del store_with_fresh_token
+    monkeypatch.setenv("SP_CHUNKED_UPLOAD_THRESHOLD_MB", "100")
+    # registry_with_seed writes ~16 bytes; well under 100 MB
+    create_session = respx.post(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/createUploadSession",
+    ).respond(200)
+    single_shot = respx.put(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content"
+    ).respond(json={"eTag": '"s,1"'})
+    respx.post(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/checkin").respond(204)
+    respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/versions").respond(
+        json={"value": [{"id": "1.0"}]}
+    )
+    save(URL, comment="small", version="minor")
+    assert single_shot.call_count == 1
+    assert create_session.call_count == 0
+
+
+@respx.mock
+def test_save_resumable_412_translates_to_stale_write_error(
+    store_with_fresh_token: None,
+    registry_with_seed: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Resumable path also raises StaleWriteError on 412 — same agent contract
+    as the single-shot path."""
+    del store_with_fresh_token
+    monkeypatch.setenv("SP_CHUNKED_UPLOAD_THRESHOLD_MB", "1")
+    work_file = registry_with_seed
+    work_file.write_bytes(b"\x00" * (2 * 1024 * 1024))
+    respx.post(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/createUploadSession",
+    ).respond(412, json={"error": {"code": "preconditionFailed"}})
+    with pytest.raises(StaleWriteError, match="changed under us"):
+        save(URL, comment="big stale", version="minor")
+    # Registry NOT cleared on stale-write
+    assert CheckoutRegistry(profile="default", base_dir=tmp_path).get(URL) is not None
