@@ -31,7 +31,7 @@ Which one does v0.1 use, and at what size do we switch?
 
 ## What v0.1 actually saves
 
-The audience for `sharepoint-mcp` is AI agents editing ISMS-relevant policy documents, contracts, and procedure docs. Realistic file-size distribution:
+The audience for `mcp-server-sharepoint` is AI agents editing ISMS-relevant policy documents, contracts, and procedure docs. Realistic file-size distribution:
 
 - Markdown / plain text: typically <100 KB.
 - DOCX policy docs: typically <2 MB. Largest seen in practice: ~10 MB (with embedded screenshots).

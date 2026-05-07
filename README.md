@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
 
-# sharepoint-mcp
+# mcp-server-sharepoint
 
 [![Licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/actions/workflows/ci.yml)
@@ -16,7 +16,7 @@ A **Model Context Protocol** server for SharePoint document libraries. Lets AI c
 
 The standard alternatives — `rclone`, WebDAV mounts, the Anthropic-hosted M365 MCP — either skip SharePoint's checkout/checkin model entirely or expose it only for search and read. That's not acceptable for documents under retention or audit constraints (ISMS records, controlled procedures, contract templates).
 
-`sharepoint-mcp` keeps the audit trail intact: every edit goes through an explicit `sp_open` → `sp_save` (or `sp_release`) cycle, attributed to the signed-in user, with a commit message and an honest version bump. Lock conflicts are reported as conflicts. ETag-based stale-write detection prevents silent overwrites.
+`mcp-server-sharepoint` keeps the audit trail intact: every edit goes through an explicit `sp_open` → `sp_save` (or `sp_release`) cycle, attributed to the signed-in user, with a commit message and an honest version bump. Lock conflicts are reported as conflicts. ETag-based stale-write detection prevents silent overwrites.
 
 Full rationale in [docs/app-concept.md](docs/app-concept.md).
 
@@ -46,7 +46,7 @@ Each tool is registered with proper [MCP `ToolAnnotations`](https://modelcontext
 
 ```bash
 # Once published on PyPI:
-uvx sharepoint-mcp --help
+uvx mcp-server-sharepoint --help
 
 # For now, from a local checkout:
 git clone https://github.com/XMV-Solutions-GmbH/sharepoint-mcp.git
@@ -57,13 +57,13 @@ uv sync
 ### 2. Sign in once (out of band)
 
 ```bash
-uv run sharepoint-mcp login
+uv run mcp-server-sharepoint login
 ```
 
 You'll see something like:
 
 ```text
-Sign in to sharepoint-mcp via the Device Code flow:
+Sign in to mcp-server-sharepoint via the Device Code flow:
 Open the URL in a browser and type the code.
 
      URL:   https://login.microsoft.com/device
@@ -83,7 +83,7 @@ For **Claude Code**, add to `.mcp.json`:
   "mcpServers": {
     "sharepoint": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"]
+      "args": ["mcp-server-sharepoint"]
     }
   }
 }
@@ -96,7 +96,7 @@ Restart Claude Code. The agent now has `sp_search`, `sp_list`, `sp_read`, `sp_st
   "mcpServers": {
     "sharepoint": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": { "SP_ALLOW_WRITES": "true" }
     }
   }
@@ -126,12 +126,12 @@ For consultancy workflows with multiple SharePoint tenants, give each its own pr
   "mcpServers": {
     "sharepoint-acme": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": { "SP_PROFILE": "acme" }
     },
     "sharepoint-globex": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": { "SP_PROFILE": "globex" }
     }
   }
@@ -141,8 +141,8 @@ For consultancy workflows with multiple SharePoint tenants, give each its own pr
 Sign each one in separately:
 
 ```bash
-uv run sharepoint-mcp login --profile acme
-uv run sharepoint-mcp login --profile globex
+uv run mcp-server-sharepoint login --profile acme
+uv run mcp-server-sharepoint login --profile globex
 ```
 
 Tools appear in Claude as `mcp__sharepoint-acme__sp_search` etc. Cross-tenant accidents don't happen because the tokens are namespaced.
@@ -160,7 +160,7 @@ If your tenant has strict app-allowlisting and refuses unknown publishers, regis
   "mcpServers": {
     "sharepoint": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": {
         "SP_TENANT_ID": "<your-tenant-guid>",
         "SP_CLIENT_ID": "<your-app-registration-guid>"
@@ -225,7 +225,7 @@ This is the part to read carefully if you're putting the MCP near ISMS-relevant 
 The cached token expired (refresh tokens last ~60–90 days) or never existed. Run:
 
 ```bash
-uv run sharepoint-mcp login --profile <name>
+uv run mcp-server-sharepoint login --profile <name>
 ```
 
 Then retry whatever tool call failed.
@@ -251,7 +251,7 @@ That's fine. The plain-file backend kicks in automatically — no action needed.
 
 ```bash
 export SP_TOKEN_PASSPHRASE='<some-strong-passphrase>'
-uv run sharepoint-mcp login --profile <name>
+uv run mcp-server-sharepoint login --profile <name>
 ```
 
 Then keep `SP_TOKEN_PASSPHRASE` exported (in `~/.bashrc`, `direnv`, etc.) for subsequent runs to decrypt.
@@ -259,7 +259,7 @@ Then keep `SP_TOKEN_PASSPHRASE` exported (in `~/.bashrc`, `direnv`, etc.) for su
 ### Recovery after a crash
 
 ```bash
-uv run sharepoint-mcp     # restart the server
+uv run mcp-server-sharepoint     # restart the server
 ```
 
 In the agent, ask `sp_status` — you'll see anything that was checked out before the crash. For each:

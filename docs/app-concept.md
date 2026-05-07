@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
 
-# sharepoint-mcp — App Concept
+# mcp-server-sharepoint — App Concept
 
 A Model Context Protocol server that lets AI coding agents read and edit files in SharePoint document libraries **without breaking SharePoint's version history, audit trail, or locking semantics**.
 
@@ -80,7 +80,7 @@ Every tool maps to one or two Microsoft Graph calls. No clever caching beyond wh
 
 ```text
 ┌──────────────────┐      stdio JSON-RPC      ┌─────────────────────┐
-│   Claude Code    │ ◄──────────────────────► │  sharepoint-mcp     │
+│   Claude Code    │ ◄──────────────────────► │ mcp-server-sharepoint│
 │   (or any        │                          │  (Python process,   │
 │    MCP client)   │                          │   one per tenant)   │
 └──────────────────┘                          └──────────┬──────────┘
@@ -112,12 +112,12 @@ Every tool maps to one or two Microsoft Graph calls. No clever caching beyond wh
 
 ### Default client: XMV-hosted multi-tenant app
 
-The package ships with a baked-in `client_id` for an Entra app registration owned by **XMV Solutions GmbH** — multi-tenant, public client, delegated scopes only (`Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`). End users install via `uvx sharepoint-mcp` and sign in immediately. No tenant-specific app registration required; no IT-admin involvement on the consumer side.
+The package ships with a baked-in `client_id` for an Entra app registration owned by **XMV Solutions GmbH** — multi-tenant, public client, delegated scopes only (`Files.ReadWrite.All`, `Sites.ReadWrite.All`, `User.Read`, `offline_access`). End users install via `uvx mcp-server-sharepoint` and sign in immediately. No tenant-specific app registration required; no IT-admin involvement on the consumer side.
 
 Registered in XMV's Entra tenant on 2026-05-06:
 
 - **`client_id`** (default `SP_CLIENT_ID`): `cb7cf68d-90d5-4841-90a7-de3a40be280b`
-- **Display name**: `sharepoint-mcp`
+- **Display name**: `mcp-server-sharepoint`
 - **Sign-in audience**: `AzureADMultipleOrgs`
 - **Homepage**: <https://github.com/XMV-Solutions-GmbH/sharepoint-mcp>
 - **Privacy URL**: <https://xmv.de/oss/sharepoint-mcp/privacy>
@@ -134,7 +134,7 @@ Tenants with strict app-allowlisting policies can override defaults via env:
 - `SP_TENANT_ID=<guid>` — pin sign-in to a specific tenant instead of `common`.
 - `SP_CLIENT_ID=<guid>` — use the organization's own app registration instead of the XMV default.
 
-If neither is set, `uvx sharepoint-mcp` is zero-config.
+If neither is set, `uvx mcp-server-sharepoint` is zero-config.
 
 ### Service-principal auth (deferred)
 
@@ -151,7 +151,7 @@ For zero-config use, one MCP entry with no env vars at all is enough:
   "mcpServers": {
     "sharepoint": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"]
+      "args": ["mcp-server-sharepoint"]
     }
   }
 }
@@ -164,12 +164,12 @@ When working across multiple SharePoint tenants from the same machine (consultan
   "mcpServers": {
     "sharepoint-acme": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": { "SP_PROFILE": "acme" }
     },
     "sharepoint-globex": {
       "command": "uvx",
-      "args": ["sharepoint-mcp"],
+      "args": ["mcp-server-sharepoint"],
       "env": { "SP_PROFILE": "globex", "SP_TENANT_ID": "<guid>" }
     }
   }
@@ -192,7 +192,7 @@ Token caches and working directories are namespaced by `SP_PROFILE` (default: `d
 
 ## Out-of-band concerns
 
-- **Audit attribution**: actions appear in SharePoint audit log as the signed-in user with the `sharepoint-mcp` user-agent string. Useful for distinguishing AI-mediated edits from manual ones.
+- **Audit attribution**: actions appear in SharePoint audit log as the signed-in user with the `mcp-server-sharepoint` user-agent string. Useful for distinguishing AI-mediated edits from manual ones.
 - **Telemetry**: none by default. Opt-in structured logging to stderr; consuming app routes it.
 - **Compliance scope**: this MCP does not pretend to be a controlled processing system itself. It is a thin pass-through to Graph; SharePoint's existing controls remain authoritative.
 

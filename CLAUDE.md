@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 SPDX-FileContributor: David Koller <david.koller@xmv.de>
 -->
 
-# Project conventions — sharepoint-mcp
+# Project conventions — mcp-server-sharepoint
 
 **Read [ENGINEERING_PRINCIPLES.md](ENGINEERING_PRINCIPLES.md) first.** It is the project-agnostic baseline (language rule, status workflow, AI-as-developer test-harness requirement, source-control rules, documentation baseline). This file only adds notes specific to this repository.
 

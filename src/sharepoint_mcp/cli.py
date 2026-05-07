@@ -5,12 +5,12 @@
 
 Three commands:
 
-- `sharepoint-mcp login [--profile NAME]` — interactive Device Code
+- `mcp-server-sharepoint login [--profile NAME]` — interactive Device Code
   flow, persists the resulting tokens to the configured TokenStore.
   Run once per profile; subsequent MCP-server starts use the cached
   refresh token silently.
-- `sharepoint-mcp logout [--profile NAME]` — clears cached credentials.
-- `sharepoint-mcp` (no command) — starts the MCP server on stdio.
+- `mcp-server-sharepoint logout [--profile NAME]` — clears cached credentials.
+- `mcp-server-sharepoint` (no command) — starts the MCP server on stdio.
   This is what `.mcp.json` invokes.
 
 The login/logout subcommands deliberately mirror the `gh auth
@@ -28,7 +28,7 @@ from sharepoint_mcp import __version__
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="sharepoint-mcp",
+        prog="mcp-server-sharepoint",
         description=(
             "MCP server for SharePoint document libraries with audit-preserving checkout/checkin."
         ),

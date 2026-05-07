@@ -10,7 +10,7 @@ the test that proves our model of the API matches reality.
 Prerequisites:
 
 - A `harness` profile token cache populated by running
-  `uv run sharepoint-mcp login --profile harness` once (see
+  `uv run mcp-server-sharepoint login --profile harness` once (see
   docs/testconcept.md once that lands).
 - The dedicated harness SharePoint site provisioned per issue #14
   (M365 group `sharepoint-mcp-harness`, test user `d.koller@xmv.de`
@@ -42,7 +42,7 @@ def _harness_token_or_skip() -> str:
     except AuthRequiredError as exc:
         pytest.skip(
             f"Harness credentials not available: {exc}. "
-            "Run `uv run sharepoint-mcp login --profile harness` to populate.",
+            "Run `uv run mcp-server-sharepoint login --profile harness` to populate.",
         )
 
 
