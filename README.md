@@ -137,6 +137,10 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
 | `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
 
+#### Large files
+
+`sp_save` uses Microsoft Graph's [resumable upload session](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession) for files larger than **100 MB** (configurable via `SP_CHUNKED_UPLOAD_THRESHOLD_MB`). Files at-or-below the threshold use a single-shot `PUT /content` for a faster path. Microsoft caps single-shot at 250 MB; the resumable path supports up to 250 GB. Chunks are 5 MiB and retry on transient 5xx / connection errors with exponential backoff.
+
 ### Authentication
 
 - **OAuth 2.0 Device Code flow** against Microsoft Identity. You sign in once; the refresh token is cached locally and silently renewed (~60–90 days until full re-login).
