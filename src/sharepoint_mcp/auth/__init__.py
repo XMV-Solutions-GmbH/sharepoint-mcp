@@ -46,6 +46,11 @@ from sharepoint_mcp.auth.flow import (
     refresh_access_token,
     request_device_code,
 )
+from sharepoint_mcp.auth.service_principal import (
+    ServicePrincipalConfigError,
+    get_app_only_token,
+    is_service_principal_mode,
+)
 from sharepoint_mcp.auth.store import TokenStore, get_token_store
 from sharepoint_mcp.auth.tokens import CachedToken
 
@@ -60,8 +65,10 @@ __all__ = [
     "DeviceCodeError",
     "DeviceCodeExpiredError",
     "RefreshTokenInvalidError",
+    "ServicePrincipalConfigError",
     "get_token",
     "interactive_login",
+    "is_service_principal_mode",
 ]
 
 
@@ -163,16 +170,26 @@ def get_token(
 ) -> str:
     """Return a valid access token for `profile`.
 
-    Reads from the configured TokenStore. If the cached access token
-    is still valid (with a small refresh buffer), returns it directly.
-    If expired and a refresh token is present, exchanges it through
-    Microsoft Identity silently and persists the new tokens.
+    In delegated mode (the default): reads from the configured
+    TokenStore, refreshes through Microsoft Identity if needed.
+
+    In service-principal mode (`SP_AUTH_MODE=service-principal`, or
+    auto-detected when `SP_CLIENT_SECRET` is set): bypasses the token
+    store, uses the in-process app-only token cache, re-acquires via
+    client_credentials when expired. `profile` is ignored in this
+    mode (one client_id+tenant -> one token).
 
     Raises:
-        AuthRequiredError: no cached entry, no refresh token, or the
-            refresh token was rejected. The caller must trigger
-            `interactive_login` to recover.
+        AuthRequiredError: delegated mode only. No cached entry, no
+            refresh token, or the refresh token was rejected. The
+            caller must trigger `interactive_login` to recover.
+        ServicePrincipalConfigError: service-principal mode is
+            selected but `SP_CLIENT_ID` / `SP_CLIENT_SECRET` /
+            `SP_TENANT_ID` aren't all set.
     """
+    if is_service_principal_mode():
+        return get_app_only_token(http=http)
+
     resolved_client = _resolve_client_id(client_id)
     resolved_tenant = _resolve_tenant(tenant)
     resolved_store = store if store is not None else get_token_store()

@@ -51,6 +51,15 @@ def store() -> _MemStore:
     return _MemStore()
 
 
+@pytest.fixture(autouse=True)
+def _ensure_delegated_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most tests in this file exercise the delegated-mode code path.
+    Clear the service-principal env vars so a polluted shell can't make
+    them dispatch to the SP path."""
+    monkeypatch.delenv("SP_AUTH_MODE", raising=False)
+    monkeypatch.delenv("SP_CLIENT_SECRET", raising=False)
+
+
 # ---------------------------------------------------------------------
 # get_token — cache-hit / refresh / re-auth-required
 # ---------------------------------------------------------------------
@@ -283,3 +292,60 @@ def test_interactive_login_uses_default_client_id(store: _MemStore) -> None:
     interactive_login(store=store, prompt=lambda _ch: None)
     body = devcode_route.calls.last.request.read().decode()
     assert f"client_id={DEFAULT_CLIENT_ID}" in body
+
+
+# ---------------------------------------------------------------------
+# get_token — service-principal dispatch (#40)
+# ---------------------------------------------------------------------
+
+
+@respx.mock
+def test_get_token_routes_to_service_principal_when_mode_set(
+    monkeypatch: pytest.MonkeyPatch, store: _MemStore
+) -> None:
+    """SP_AUTH_MODE=service-principal: skip TokenStore, hit /token directly."""
+    from sharepoint_mcp.auth.flow import AUTHORITY_BASE
+    from sharepoint_mcp.auth.service_principal import reset_cache
+
+    reset_cache()
+    monkeypatch.setenv("SP_AUTH_MODE", "service-principal")
+    monkeypatch.setenv("SP_CLIENT_ID", "cid")
+    monkeypatch.setenv("SP_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("SP_TENANT_ID", "tenant-x")
+    respx.post(f"{AUTHORITY_BASE}/tenant-x/oauth2/v2.0/token").respond(
+        json={"access_token": "AT-sp", "expires_in": 3600, "scope": ""},
+    )
+    # store contains nothing — but in SP mode we should bypass it entirely
+    assert get_token(store=store) == "AT-sp"
+
+
+@respx.mock
+def test_get_token_auto_detects_service_principal_via_secret(
+    monkeypatch: pytest.MonkeyPatch, store: _MemStore
+) -> None:
+    """SP_CLIENT_SECRET alone (no SP_AUTH_MODE) auto-detects SP mode."""
+    from sharepoint_mcp.auth.flow import AUTHORITY_BASE
+    from sharepoint_mcp.auth.service_principal import reset_cache
+
+    reset_cache()
+    monkeypatch.delenv("SP_AUTH_MODE", raising=False)
+    monkeypatch.setenv("SP_CLIENT_ID", "cid")
+    monkeypatch.setenv("SP_CLIENT_SECRET", "secret")
+    monkeypatch.setenv("SP_TENANT_ID", "tenant-y")
+    respx.post(f"{AUTHORITY_BASE}/tenant-y/oauth2/v2.0/token").respond(
+        json={"access_token": "AT-sp-auto", "expires_in": 3600, "scope": ""},
+    )
+    assert get_token(store=store) == "AT-sp-auto"
+
+
+def test_get_token_explicit_delegated_overrides_secret_presence(
+    monkeypatch: pytest.MonkeyPatch, store: _MemStore
+) -> None:
+    """SP_AUTH_MODE=delegated wins even if SP_CLIENT_SECRET is also set."""
+    monkeypatch.setenv("SP_AUTH_MODE", "delegated")
+    monkeypatch.setenv("SP_CLIENT_SECRET", "secret")
+    # No cached token: delegated mode would raise AuthRequiredError;
+    # SP mode would raise ServicePrincipalConfigError. We expect the
+    # former.
+    with pytest.raises(AuthRequiredError, match="no cached credentials"):
+        get_token(store=store)
