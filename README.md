@@ -125,7 +125,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_search(query, site?, folder?, file_type?, modified_after?)` | KQL-style search across SharePoint sites the user has access to. Returns hits with name, path, web URL, last-modified date, author. |
 | `sp_list(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
 | `sp_read(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
-| `sp_status()` | Show what files this agent currently has checked out, when, and where the local working copies are. |
+| `sp_status(verify=False)` | Show what files this agent currently has checked out, when, and where the local working copies are. With `verify=True`, additionally queries SharePoint to confirm the server-side lock state — adds `server_locked` (`true`/`false`/`null`) and `lock_holder` (display name) to each entry. Costs one Graph call per registry entry. |
 
 ### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
 

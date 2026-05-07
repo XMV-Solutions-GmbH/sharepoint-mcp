@@ -139,12 +139,15 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         description=(
             "List the files this MCP profile currently has checked out (acquired via "
             "sp_open). Returns each entry's original path, when checkout happened, "
-            "and the local working-copy path. Read-only. v0.1 reads the local "
-            "registry only — server-side reconciliation lands in v0.2."
+            "and the local working-copy path. Read-only. With verify=True, "
+            "additionally queries SharePoint to confirm the server-side lock state "
+            "(server_locked + lock_holder fields); costs one Graph call per "
+            "registry entry. Default verify=False is sub-second, registry-only — "
+            "sp_save's ETag round-trip catches divergence at write time."
         ),
     )
-    def sp_status() -> list[dict[str, Any]]:
-        return _do_status(profile=_get_profile())
+    def sp_status(verify: bool = False) -> list[dict[str, Any]]:
+        return _do_status(profile=_get_profile(), verify=verify)
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
