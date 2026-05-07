@@ -30,6 +30,7 @@ from mcp.types import ToolAnnotations
 
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
 from sharepoint_mcp.tools.open_file import open_file as _do_open
+from sharepoint_mcp.tools.publish import publish as _do_publish
 from sharepoint_mcp.tools.read import read_file as _do_read
 from sharepoint_mcp.tools.release import release as _do_release
 from sharepoint_mcp.tools.save import save as _do_save
@@ -218,6 +219,36 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_release(url: str) -> None:
         _do_release(url, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Publish New SharePoint File",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Upload a brand-new local file as a new document in a SharePoint folder. "
+            "Use for the 'draft + promote' workflow: agent drafts locally, then "
+            "publishes to SharePoint as a fresh file. REFUSES if the target path "
+            "already exists — use sp_open + sp_save to edit existing files (gives "
+            "proper audit comment + version history). `name` defaults to the local "
+            "file's basename; override to publish under a different filename. "
+            "Returns the new driveItem's webUrl, etag, size, last_modified."
+        ),
+    )
+    def sp_publish(
+        local_path: str,
+        target_folder_url: str,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        return _do_publish(
+            local_path,
+            target_folder_url,
+            name=name,
+            profile=_get_profile(),
+        )
 
 
 def _build_server() -> FastMCP:
