@@ -29,7 +29,9 @@ from __future__ import annotations
 
 import os
 import sys
+import webbrowser
 from collections.abc import Callable
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -100,17 +102,61 @@ def _resolve_tenant(tenant: str | None) -> str:
     return env or DEFAULT_AUTHORITY_TENANT
 
 
+def _verification_uri_with_code(uri: str, code: str) -> str:
+    """Append `?otc=<code>` so Microsoft's device-login page pre-fills the code.
+
+    Microsoft's device-login page accepts an `otc` (one-time code) query
+    parameter and auto-fills the input field with it, so the user only
+    has to click and pick an account — no manual code typing.
+    """
+    parts = urlsplit(uri)
+    existing = parts.query
+    new_query = (existing + "&" if existing else "") + urlencode({"otc": code})
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+
+def _has_desktop_session() -> bool:
+    """Heuristic: true iff there's likely a usable graphical browser."""
+    if sys.platform == "darwin" or sys.platform.startswith("win"):
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 def _default_prompt(challenge: DeviceCodeChallenge) -> None:
-    """Write Device Code challenge to stderr in a human-readable form."""
-    print(
-        "\nTo sign in to sharepoint-mcp:\n"
-        f"  1. Open: {challenge.verification_uri}\n"
-        f"  2. Enter code: {challenge.user_code}\n"
-        "  3. Sign in with the M365 account you want to authorise.\n"
-        "\nWaiting for sign-in...",
-        file=sys.stderr,
-        flush=True,
-    )
+    """Show the Device Code challenge to the human running login.
+
+    On a desktop session (macOS/Windows always, Linux with DISPLAY or
+    WAYLAND_DISPLAY), tries to open the pre-filled verification URL in
+    the default browser. In every case, also prints the URL + code to
+    stderr so headless users (and our background-task captures) get
+    them in the log.
+    """
+    pre_filled = _verification_uri_with_code(challenge.verification_uri, challenge.user_code)
+
+    opened = False
+    if _has_desktop_session():
+        try:
+            opened = webbrowser.open(pre_filled, new=2)
+        except webbrowser.Error:
+            opened = False
+
+    if opened:
+        msg = (
+            "\nOpening your browser to complete sign-in.\n"
+            f"  If it didn't open, visit: {pre_filled}\n"
+            f"  (Code is pre-filled: {challenge.user_code})\n"
+            "\nWaiting for sign-in..."
+        )
+    else:
+        msg = (
+            "\nTo sign in to sharepoint-mcp:\n"
+            f"  1. Open: {pre_filled}\n"
+            f"     (the code {challenge.user_code} is already in the URL)\n"
+            "  2. Pick the M365 account you want to authorise.\n"
+            "\nWaiting for sign-in..."
+        )
+
+    print(msg, file=sys.stderr, flush=True)
 
 
 def get_token(

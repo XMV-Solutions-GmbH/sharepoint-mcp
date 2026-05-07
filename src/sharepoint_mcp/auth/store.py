@@ -3,18 +3,26 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Token persistence backends.
 
-Two implementations behind a `TokenStore` Protocol:
+Three implementations behind a `TokenStore` Protocol, in preference
+order:
 
 - `KeyringTokenStore`: uses python-keyring, which delegates to the
   active OS keyring (Secret Service / Keychain / Credential Locker).
-  Available when the OS provides one of those.
+  Available when the OS provides one of those — this is what most
+  desktop installs (macOS, Windows, Linux with gnome-keyring) hit.
+- `PlainFileTokenStore`: JSON at `~/.cache/sharepoint-mcp/<profile>
+  /token.json` with mode 0600. Default fallback when keyring isn't
+  available. Same security model as `gh auth`, `aws configure`,
+  `npm login`, `~/.ssh/id_rsa`: trust the local user account.
 - `EncryptedFileTokenStore`: cryptography.fernet ciphertext on disk
-  with a Scrypt-derived key from a passphrase env var. Used as the
-  fallback for headless servers and CI environments.
+  with a Scrypt-derived key from `SP_TOKEN_PASSPHRASE`. Opt-in for
+  CI (passphrase + ciphertext as separate secrets) or paranoid
+  users.
 
-Auto-detection picks keyring when the active backend is real (not
-`fail.Keyring` and not a known-plaintext class), file otherwise.
-`SP_TOKEN_STORE=keyring|file` overrides the auto-pick.
+Auto-detection: keyring (if real backend) → plain file (default
+fallback) → encrypted file (only if passphrase set). No env vars
+needed for the typical install. `SP_TOKEN_STORE=keyring|file|encrypted-file`
+forces a specific backend.
 
 Rationale: see docs/spikes/2026-05-06-keyring-vs-encrypted-file.md.
 """
@@ -51,8 +59,10 @@ _SALT_BYTES = 16
 class NoUsableTokenStoreError(RuntimeError):
     """Raised when no token-store backend can be activated.
 
-    Either keyring has no real backend AND `SP_TOKEN_PASSPHRASE` is
-    unset, or the user gave an invalid `SP_TOKEN_STORE` override.
+    Realistically only fires when the user gave an invalid
+    `SP_TOKEN_STORE` override or `SP_TOKEN_STORE=encrypted-file`
+    without a passphrase. The default auto-pick always finds a
+    backend (plain file is the universal fallback).
     """
 
 
@@ -178,6 +188,48 @@ class EncryptedFileTokenStore:
                 pass
 
 
+class PlainFileTokenStore:
+    """Plain JSON file token store, mode 0600.
+
+    Universal fallback used when no OS keyring is available and the
+    user hasn't opted into encrypted-file mode. Same security model
+    as `gh auth login`, `aws configure`, `npm login`,
+    `~/.ssh/id_rsa`: trust the local user account.
+
+    Layout per profile:
+
+        <base_dir>/<profile>/token.json   JSON of the CachedToken dict
+
+    File mode is 0o600 (owner-only) on POSIX. Directory is created
+    on demand. No env vars required.
+    """
+
+    def __init__(self, base_dir: Path | None = None) -> None:
+        self._base_dir = base_dir if base_dir is not None else DEFAULT_CACHE_DIR
+
+    def _profile_dir(self, profile: str) -> Path:
+        d = self._base_dir / profile
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def get(self, profile: str) -> bytes | None:
+        token_file = self._profile_dir(profile) / "token.json"
+        if not token_file.exists():
+            return None
+        return token_file.read_bytes()
+
+    def set(self, profile: str, value: bytes) -> None:
+        token_file = self._profile_dir(profile) / "token.json"
+        token_file.write_bytes(value)
+        token_file.chmod(0o600)
+
+    def delete(self, profile: str) -> None:
+        try:
+            (self._profile_dir(profile) / "token.json").unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _is_real_keyring_backend(kr: keyring.backend.KeyringBackend) -> bool:
     """Return True if `kr` is a real OS keychain integration.
 
@@ -195,26 +247,32 @@ def _is_real_keyring_backend(kr: keyring.backend.KeyringBackend) -> bool:
 def get_token_store() -> TokenStore:
     """Pick a token-store backend for the current environment.
 
-    Resolution order:
+    Resolution order (no env vars needed for the typical install):
 
-    1. `SP_TOKEN_STORE=keyring` or `=file` — explicit, no auto-detect.
-    2. Auto: keyring if a real OS backend is detected.
-    3. Auto: encrypted-file if `SP_TOKEN_PASSPHRASE` is set.
-    4. Otherwise raise `NoUsableTokenStoreError` with a message that
-       names both options the user could enable.
+    1. `SP_TOKEN_STORE=keyring|file|encrypted-file` — explicit override.
+    2. Auto: OS keyring if a real backend is detected (macOS Keychain,
+       Windows Credential Locker, Linux Secret Service).
+    3. Auto: encrypted-file backend if `SP_TOKEN_PASSPHRASE` is set
+       (opt-in, useful for CI where the passphrase + ciphertext are
+       separate secrets).
+    4. Auto: plain-file backend (`~/.cache/sharepoint-mcp/<profile>/
+       token.json` mode 0600). This is the default fallback for
+       headless Linux and matches what `gh auth login`,
+       `aws configure`, etc. do.
 
-    Note: this returns a backend; the backend may still raise at
-    `set()` / `get()` time if e.g. a forced keyring choice has no
-    real backend available. We don't probe at construction.
+    Returns a backend; some backends may still raise at `set()` /
+    `get()` time (e.g. a forced keyring choice with no real backend).
     """
     forced = os.environ.get(STORE_OVERRIDE_ENV, "").strip().lower()
     if forced == "keyring":
         return KeyringTokenStore()
-    if forced == "file":
+    if forced in ("encrypted-file", "encrypted_file", "encrypted"):
         return EncryptedFileTokenStore()
+    if forced == "file":
+        return PlainFileTokenStore()
     if forced:
         raise NoUsableTokenStoreError(
-            f"{STORE_OVERRIDE_ENV} must be 'keyring' or 'file', got {forced!r}",
+            f"{STORE_OVERRIDE_ENV} must be 'keyring', 'file', or 'encrypted-file'; got {forced!r}",
         )
 
     if _is_real_keyring_backend(keyring.get_keyring()):
@@ -223,10 +281,4 @@ def get_token_store() -> TokenStore:
     if os.environ.get(PASSPHRASE_ENV):
         return EncryptedFileTokenStore()
 
-    raise NoUsableTokenStoreError(
-        "No usable token store. Either: (a) install a real OS keyring "
-        "backend (Linux: gnome-keyring-daemon or KWallet running with a "
-        "session bus; macOS: Keychain Access; Windows: Credential Locker), "
-        f"or (b) set {PASSPHRASE_ENV} to enable the encrypted-file backend. "
-        "See docs/spikes/2026-05-06-keyring-vs-encrypted-file.md.",
-    )
+    return PlainFileTokenStore()

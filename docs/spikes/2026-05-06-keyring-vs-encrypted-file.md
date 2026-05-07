@@ -8,7 +8,9 @@ SPDX-FileContributor: David Koller <david.koller@xmv.de>
 
 **Date**: 2026-05-06
 **Issue**: [#9](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/9)
-**Decision**: **dual backend** — `keyring` when it has a real backend, `cryptography.fernet`-encrypted file otherwise; auto-detect at first use with `SP_TOKEN_STORE` as override.
+**Revised**: 2026-05-07 — original decision required `SP_TOKEN_PASSPHRASE` for headless installs, which created unnecessary friction (no other CLI tool does this). Adjusted to add `PlainFileTokenStore` (mode 0600) as the universal fallback; encrypted-file becomes opt-in via passphrase. See "Revision" section at the bottom.
+
+**Decision (current)**: **three backends** — `keyring` (preferred when real OS backend exists), `PlainFileTokenStore` (default fallback, mode 0600 JSON, same convention as `gh auth` / `aws configure` / `npm login`), `EncryptedFileTokenStore` (opt-in via `SP_TOKEN_PASSPHRASE`, useful for CI). Auto-detect at first use with `SP_TOKEN_STORE=keyring|file|encrypted-file` as override. **No env vars required for the typical install.**
 
 ---
 
@@ -138,14 +140,45 @@ Three secrets per CI environment: passphrase, ciphertext, salt. Generated once o
 
 ## What this rules out
 
-- A "plaintext-fallback because no other option" mode. Either keyring works, or the user provides a passphrase. There is no third path. We will not write tokens to disk in plaintext under any circumstance.
 - Trying to autostart `gnome-keyring-daemon` from our process. That's an OS-level concern, not a tool concern.
-- A custom `keyring` backend implementation (e.g., registering an encrypted-file backend with the keyring library itself). Cleaner-looking but adds magic and another extension surface to audit. Direct two-store ABC is more honest.
+- A custom `keyring` backend implementation (e.g., registering an encrypted-file backend with the keyring library itself). Cleaner-looking but adds magic and another extension surface to audit. Direct ABC is more honest.
+- **Silent** plaintext-fallback while pretending to be a keyring. The `keyrings.alt.file.PlaintextKeyring` backend is explicitly rejected by `_is_real_keyring_backend`. (See revision below for what changed about the explicit, documented plain-file path.)
+
+## Revision (2026-05-07)
+
+The original decision required `SP_TOKEN_PASSPHRASE` to be set whenever no keyring was available. First contact with the actual user UX revealed this is too much friction:
+
+- No comparable CLI tool requires this. `gh auth login`, `aws configure`, `npm login`, `git credential` all write to a mode-0600 JSON file in the user's home and trust the local user account. The "set an env var before logging in" step doesn't exist in any of those.
+- The original "no plaintext-on-disk, ever" rule was a reaction to `python-keyring`'s sneaky `keyrings.alt.PlaintextKeyring` fallback (silently downgrading from a secure-looking keyring API to plaintext). That risk is real and we still defend against it. But an **explicit, documented** plain-file backend is a different thing — it doesn't pretend to be encrypted, and it's the standard convention for this class of tool.
+
+### Adjusted backend roster
+
+| Tier | Backend | When | Setup |
+|---|---|---|---|
+| 1 | `KeyringTokenStore` | macOS / Windows / Linux desktop with Secret Service | none |
+| 2 | `PlainFileTokenStore` (NEW) | headless Linux, CI without secrets, default fallback | none |
+| 3 | `EncryptedFileTokenStore` | opt-in via `SP_TOKEN_PASSPHRASE`; useful for CI where passphrase + ciphertext are separate secrets | env var |
+
+`SP_TOKEN_STORE=keyring|file|encrypted-file` forces one specifically.
+
+### Plain-file layout
+
+`<base_dir>/<profile>/token.json`, mode `0o600`, JSON of the `CachedToken` dict. Directory created on demand. No salt file (no encryption). Same security as `~/.ssh/id_rsa`.
+
+### What stays the same
+
+- `_is_real_keyring_backend` still rejects `fail.Keyring` and any class whose name contains `Plaintext`. We do not silently downgrade through `python-keyring`.
+- Encrypted-file backend stays as an opt-in path for users who want belt-and-suspenders, and for CI where the passphrase is in one secret and the ciphertext+salt are in two more.
+- The CI workflow sketch above (passphrase + base64 ciphertext + base64 salt as three secrets) still works for users who want encryption in CI. Users who don't can simpler-store the plaintext JSON as a single secret and write it directly to `~/.cache/sharepoint-mcp/<profile>/token.json` in CI.
+
+### Why this is still safe
+
+`gh`, `npm`, `aws`, `kubectl`, `ssh` — all of these put credentials in mode-0600 files in `$HOME`. They've shipped to billions of installs over decades. The threat model is well-understood: if your local user account is compromised, you have bigger problems than a credential file. Our previous "passphrase required" rule was over-corrective relative to the industry norm and the actual threat model.
 
 ## Follow-ups landed by this spike
 
-- `cryptography>=42` will be added to `pyproject.toml` runtime deps when #10 lands.
+- `cryptography>=42` was added to `pyproject.toml` runtime deps with #10. (Still required because `EncryptedFileTokenStore` is opt-in but live.)
 - `keyring>=25` likewise.
 - `docs/app-concept.md` open-question #2 closed.
-- `EncryptedFileTokenStore` and `KeyringTokenStore` implementations come with #10 (auth module).
-- CI harness-job stub above is a sketch; the working version lands as part of #28 (harness gate) once the test refresh token exists to encrypt.
+- `KeyringTokenStore`, `EncryptedFileTokenStore`, and `PlainFileTokenStore` implementations come with #10 (auth module).
+- CI harness-job sketch (encryption variant) above stays as one option; users who prefer plain-secret-as-JSON write directly to `token.json` and skip the encryption.

@@ -24,6 +24,7 @@ from sharepoint_mcp.auth.store import (
     EncryptedFileTokenStore,
     KeyringTokenStore,
     NoUsableTokenStoreError,
+    PlainFileTokenStore,
     _is_real_keyring_backend,
     get_token_store,
 )
@@ -177,6 +178,48 @@ def test_file_salt_persists_across_instances(
 
 
 # ---------------------------------------------------------------------
+# PlainFileTokenStore — tmp_path, no passphrase
+# ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def plain_store(tmp_path: Path) -> PlainFileTokenStore:
+    return PlainFileTokenStore(base_dir=tmp_path)
+
+
+def test_plain_set_get_roundtrip(plain_store: PlainFileTokenStore) -> None:
+    plain_store.set("profile-a", b'{"access_token": "AT"}')
+    assert plain_store.get("profile-a") == b'{"access_token": "AT"}'
+
+
+def test_plain_get_unknown_profile(plain_store: PlainFileTokenStore) -> None:
+    assert plain_store.get("never-stored") is None
+
+
+def test_plain_delete(plain_store: PlainFileTokenStore) -> None:
+    plain_store.set("profile-a", b"x")
+    plain_store.delete("profile-a")
+    assert plain_store.get("profile-a") is None
+
+
+def test_plain_delete_no_op_on_missing(plain_store: PlainFileTokenStore) -> None:
+    plain_store.delete("never-stored")
+
+
+def test_plain_per_profile_isolation(plain_store: PlainFileTokenStore) -> None:
+    plain_store.set("profile-a", b"value-a")
+    plain_store.set("profile-b", b"value-b")
+    assert plain_store.get("profile-a") == b"value-a"
+    assert plain_store.get("profile-b") == b"value-b"
+
+
+def test_plain_file_permissions_owner_only(tmp_path: Path) -> None:
+    PlainFileTokenStore(base_dir=tmp_path).set("profile-a", b"v")
+    f = tmp_path / "profile-a" / "token.json"
+    assert (f.stat().st_mode & 0o777) == 0o600
+
+
+# ---------------------------------------------------------------------
 # _is_real_keyring_backend
 # ---------------------------------------------------------------------
 
@@ -231,6 +274,13 @@ def test_get_token_store_explicit_keyring(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_get_token_store_explicit_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SP_TOKEN_STORE", "file")
+    monkeypatch.delenv("SP_TOKEN_PASSPHRASE", raising=False)
+    store = get_token_store()
+    assert isinstance(store, PlainFileTokenStore)
+
+
+def test_get_token_store_explicit_encrypted_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SP_TOKEN_STORE", "encrypted-file")
     monkeypatch.setenv("SP_TOKEN_PASSPHRASE", "p")
     store = get_token_store()
     assert isinstance(store, EncryptedFileTokenStore)
@@ -238,11 +288,11 @@ def test_get_token_store_explicit_file(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_get_token_store_invalid_explicit_value(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SP_TOKEN_STORE", "garbage")
-    with pytest.raises(NoUsableTokenStoreError, match="must be 'keyring' or 'file'"):
+    with pytest.raises(NoUsableTokenStoreError, match="must be 'keyring', 'file'"):
         get_token_store()
 
 
-def test_get_token_store_auto_picks_file_when_no_keyring(
+def test_get_token_store_auto_picks_encrypted_when_passphrase_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SP_TOKEN_STORE", raising=False)
@@ -252,12 +302,15 @@ def test_get_token_store_auto_picks_file_when_no_keyring(
     assert isinstance(store, EncryptedFileTokenStore)
 
 
-def test_get_token_store_no_keyring_and_no_passphrase(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_token_store_auto_picks_plain_file_when_no_keyring_no_passphrase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Universal fallback — no env vars needed for typical install."""
     monkeypatch.delenv("SP_TOKEN_STORE", raising=False)
     monkeypatch.delenv("SP_TOKEN_PASSPHRASE", raising=False)
     monkeypatch.setattr(keyring, "get_keyring", lambda: keyring.backends.fail.Keyring())
-    with pytest.raises(NoUsableTokenStoreError, match="No usable token store"):
-        get_token_store()
+    store = get_token_store()
+    assert isinstance(store, PlainFileTokenStore)
 
 
 def test_get_token_store_picks_keyring_when_real_backend(
