@@ -87,6 +87,13 @@ def test_register_write_tools_adds_sp_open() -> None:
     assert "sp_open" in names
 
 
+def test_register_write_tools_adds_bulk_tools() -> None:
+    server = FastMCP("test-with-writes")
+    register_write_tools(server)
+    names = _list_tool_names(server)
+    assert {"sp_open_many", "sp_save_many"}.issubset(names)
+
+
 def test_read_tools_have_readonly_annotation() -> None:
     """All read tools must have readOnlyHint=True so Claude Code's prompt is right."""
     server = FastMCP("test-read-only")

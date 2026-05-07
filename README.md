@@ -134,6 +134,8 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | `sp_open(url)` | **Acquire a server-side checkout lock** + download the current content to a working-directory path. Other users see "checked out by *you*" until you save or release. Fails with a clear error if someone else already holds the lock. |
 | `sp_save(url, comment, version="minor"\|"major")` | Upload your changes + check the file back in with an audit comment + new version. **`comment` is required and must be non-empty** — describes what changed for the audit log. ETag round-trip catches "someone else changed the file underneath us" and refuses to clobber. |
 | `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
+| `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
+| `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
 
 ### Authentication
 

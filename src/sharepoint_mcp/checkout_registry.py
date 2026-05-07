@@ -23,11 +23,20 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 DEFAULT_REGISTRY_DIR = Path.home() / ".cache" / "sharepoint-mcp"
+
+# Process-wide lock for registry mutations. Bulk operations
+# (sp_open_many / sp_save_many) run multiple `add` / `remove`
+# concurrently, and `add` does a non-atomic read-modify-write
+# (list_all → mutate → _write). Without this lock, two concurrent
+# adds can stomp each other and lose entries. The lock is held only
+# for the duration of each mutation; underlying I/O is fast.
+_REGISTRY_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -69,19 +78,22 @@ class CheckoutRegistry:
         return None
 
     def add(self, entry: CheckedOutEntry) -> None:
-        """Add or replace the entry for `entry.path`."""
-        existing = [e for e in self.list_all() if e.path != entry.path]
-        existing.append(entry)
-        self._write(existing)
+        """Add or replace the entry for `entry.path`. Thread-safe."""
+        with _REGISTRY_LOCK:
+            existing = [e for e in self.list_all() if e.path != entry.path]
+            existing.append(entry)
+            self._write(existing)
 
     def remove(self, path: str) -> CheckedOutEntry | None:
-        """Remove the entry for `path`. Returns the removed entry, or None."""
-        existing = self.list_all()
-        match = next((e for e in existing if e.path == path), None)
-        if match is None:
-            return None
-        remaining = [e for e in existing if e.path != path]
-        self._write(remaining)
+        """Remove the entry for `path`. Returns the removed entry, or None.
+        Thread-safe."""
+        with _REGISTRY_LOCK:
+            existing = self.list_all()
+            match = next((e for e in existing if e.path == path), None)
+            if match is None:
+                return None
+            remaining = [e for e in existing if e.path != path]
+            self._write(remaining)
         return match
 
     def _write(self, entries: list[CheckedOutEntry]) -> None:
