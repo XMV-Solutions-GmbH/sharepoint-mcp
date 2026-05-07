@@ -77,15 +77,16 @@ def test_subsites_validation_does_not_need_harness() -> None:
 
 
 def test_drives_lists_at_least_default_library() -> None:
-    """Every SharePoint site has at least the default 'Documents' library."""
+    """Every SharePoint site has at least one document library — the default
+    'Shared Documents'. The display name is localised by SharePoint to the
+    site's content language (en: 'Documents', de: 'Dokumente', etc.); we
+    assert presence + drive_type rather than a specific name."""
     _skip_if_no_harness()
     result = drives(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
     assert isinstance(result, list)
     assert len(result) >= 1
-    names = {d["name"] for d in result}
-    # Default doc library; SharePoint Online localises this in some
-    # tenants but the harness tenant is en-US.
-    assert any(n in {"Documents", "Shared Documents"} for n in names), names
+    doc_libraries = [d for d in result if d.get("drive_type") == "documentLibrary"]
+    assert len(doc_libraries) >= 1, f"no documentLibrary found in {result!r}"
 
 
 def test_drives_validation_does_not_need_harness() -> None:
