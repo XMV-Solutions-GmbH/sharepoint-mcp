@@ -103,9 +103,7 @@ def _delete_one_file(url: str) -> None:
         with httpx.Client(timeout=30.0) as client:
             hostname, site_path, item_path = parse_sharepoint_url(url)
             site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-            drive_id, item_id = resolve_drive_item(
-                client, site_id, item_path, headers=headers
-            )
+            drive_id, item_id = resolve_drive_item(client, site_id, item_path, headers=headers)
             client.delete(
                 f"{GRAPH_BASE}/drives/{drive_id}/items/{item_id}",
                 headers=headers,

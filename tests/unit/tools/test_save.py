@@ -242,9 +242,7 @@ def test_save_uses_resumable_upload_when_file_exceeds_threshold(
     work_file.write_bytes(b"\x00" * (2 * 1024 * 1024))  # 2 MB
 
     # Single-shot route should NOT fire
-    single_shot = respx.put(
-        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content"
-    ).respond(200)
+    single_shot = respx.put(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(200)
     create_session = respx.post(
         f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/createUploadSession",
     ).respond(json={"uploadUrl": "https://upload.example/abc"})
@@ -277,9 +275,9 @@ def test_save_uses_single_shot_when_file_under_threshold(
     create_session = respx.post(
         f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/createUploadSession",
     ).respond(200)
-    single_shot = respx.put(
-        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content"
-    ).respond(json={"eTag": '"s,1"'})
+    single_shot = respx.put(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(
+        json={"eTag": '"s,1"'}
+    )
     respx.post(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/checkin").respond(204)
     respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/versions").respond(
         json={"value": [{"id": "1.0"}]}
