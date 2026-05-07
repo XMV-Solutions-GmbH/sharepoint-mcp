@@ -85,6 +85,7 @@ def test_register_read_tools_adds_all_read_tools() -> None:
         "sp_list_columns",
         "sp_list_items",
         "sp_get_item",
+        "sp_permissions",
     }
 
 
