@@ -143,10 +143,16 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 
 ### Authentication
 
-- **OAuth 2.0 Device Code flow** against Microsoft Identity. You sign in once; the refresh token is cached locally and silently renewed (~60–90 days until full re-login).
+- **OAuth 2.0 Device Code flow** against Microsoft Identity (default). You sign in once; the refresh token is cached locally and silently renewed (~60–90 days until full re-login).
 - **Bring-your-own-app or use ours.** XMV publishes a multi-tenant Entra app registration that's baked in as the default — same pattern as Azure CLI / GitHub CLI. Tenants with strict app-allowlisting can override via `SP_CLIENT_ID` and `SP_TENANT_ID` env vars.
 - **Token storage** is auto-detected at first use: OS keyring (macOS Keychain / Windows Credential Locker / Linux Secret Service) when available, mode-0600 plain JSON file as fallback (same convention as `gh auth`, `aws configure`). Optional encryption with `SP_TOKEN_PASSPHRASE` for paranoid setups or CI.
 - **Multi-customer / multi-tenant**: separate `SP_PROFILE` per tenant, each with its own token cache.
+
+#### Service-principal mode (unattended automation)
+
+For CI / scheduled jobs where no human is in the loop, run with `SP_AUTH_MODE=service-principal` (or just set `SP_CLIENT_SECRET` — auto-detected). Required env vars: `SP_CLIENT_ID`, `SP_CLIENT_SECRET`, `SP_TENANT_ID`. The app registration must have **Application** Microsoft Graph permissions (`Files.ReadWrite.All`, `Sites.ReadWrite.All`) with admin consent recorded.
+
+Tradeoff: every action is attributed to the *application* principal in SharePoint's audit log, NOT a real user. The compliance-friendly default stays delegated user auth — only switch when no human is in the loop.
 
 ### Security model
 
