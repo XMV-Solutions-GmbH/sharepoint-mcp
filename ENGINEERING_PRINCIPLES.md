@@ -213,6 +213,19 @@ When deriving an issue backlog from a concept document for an AI-driven project:
 - **No `git config` modification without explicit human request.**
 - Prefer creating new commits over amending. Amend only on un-pushed commits and only with explicit reason (e.g. fixing the author of a fresh initial commit).
 
+### CI vigilance: watch every push, fix red immediately
+
+Every `git push` (direct-to-trunk or via merging a PR) implicitly creates a CI run. The committer's job does not end at "push succeeded" — it ends at **"CI for that commit went green"**.
+
+Operationally:
+
+- **Watch the CI run** for the commit you just pushed. `gh run watch <id> --exit-status` blocks until completion and exits non-zero on failure; use it.
+- **Red CI on the trunk branch is a P0 incident.** The person who broke it fixes it before doing any other work. If a fix is non-trivial, **revert the breaking commit** rather than leaving trunk red while you investigate. Trunk red blocks every other contributor's ability to merge.
+- **Don't assume CI agrees with you because the local tests pass.** CI runs different OS, different Python, different env-var defaults, fresh-clone state. A "works on my machine" with red CI is still red CI.
+- **Notifications can lag.** If GitHub emails you about a CI failure five minutes after you've pushed three more commits, check the SHA the email references — it may already be old news. But the converse also holds: if the email is recent and the SHA matches your latest push, react.
+
+This is the discipline that keeps trunk deployable per § 13. Without it, "PR is always in a deployable state" degrades to "PR is in a deployable state until something quietly broke and nobody noticed."
+
 ---
 
 ## 7. Documentation baseline
