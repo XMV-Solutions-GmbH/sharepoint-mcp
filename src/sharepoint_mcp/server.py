@@ -273,7 +273,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_list_items(
         list_url: str,
-        filter: str | None = None,  # noqa: A002
+        filter: str | None = None,
         top: int = 100,
     ) -> list[dict[str, Any]]:
         return _do_list_items(list_url, filter=filter, top=top, profile=_get_profile())

@@ -176,7 +176,7 @@ def list_columns(
 def list_items(
     list_url: str,
     *,
-    filter: str | None = None,  # noqa: A002 — Graph param is named "filter"
+    filter: str | None = None,
     top: int = 100,
     profile: str = "default",
     http: httpx.Client | None = None,
