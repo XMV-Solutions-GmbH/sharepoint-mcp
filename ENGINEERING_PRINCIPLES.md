@@ -354,13 +354,16 @@ From the moment PRs are introduced, the following rules apply.
 
 Every PR opened for review represents work that **could merge as-is**:
 
-- All tests pass — unit, integration, end-to-end (the test harness from § 5).
+- **CI is green on the PR's head commit at merge time.** Not "was green earlier and probably still is", not "would be green if the flake settled" — actively green when the merge button is clicked. Branch protection should require this; if it doesn't, the PR author manually verifies it.
+- All tests pass — unit, integration, harness (the three layers from § 5).
 - Documentation is updated alongside the change (App Concept, Architecture, Secrets, README, TODO, ISSUES). No new `(TBD)` markers without a corresponding follow-up TODO.
 - New behaviour either has tests, or the PR explicitly notes why not.
 - No half-finished work, no commented-out blocks, no dead branches.
 - Test automation has been **extended** for any new behaviour — adding a feature without extending the harness counts as half-finished.
 
 A PR is not a "save point" or a "share-with-the-team-for-feedback" mechanism. It's a proposal to merge into trunk. Use draft PRs explicitly when you want to share work-in-progress.
+
+After merge, see § 6 "CI vigilance" — the post-merge CI run on trunk is the committer's responsibility too, not just the pre-merge one on the PR branch.
 
 ### Four-eyes review is a separate concern from PR discipline
 
