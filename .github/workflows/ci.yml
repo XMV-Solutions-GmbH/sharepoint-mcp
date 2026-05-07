@@ -59,3 +59,45 @@ jobs:
 
       - name: Run unit + integration tests
         run: ./tests/run_tests.sh
+
+  harness:
+    runs-on: ubuntu-latest
+    needs: test
+    # Run harness tests against the real SharePoint sandbox using the
+    # cached refresh token from a repo secret. Skips silently when the
+    # secret isn't available (e.g., on PRs from forks where secrets
+    # aren't passed) so external contributions aren't blocked on
+    # something they can't provide.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install package + dev dependencies
+        run: uv sync --extra dev
+
+      - name: Restore harness token cache from secret
+        env:
+          TOKEN_B64: ${{ secrets.SHAREPOINT_HARNESS_TOKEN_JSON }}
+        run: |
+          if [ -z "$TOKEN_B64" ]; then
+            echo "::warning::SHAREPOINT_HARNESS_TOKEN_JSON not set — harness tests will be skipped."
+            exit 0
+          fi
+          mkdir -p ~/.cache/sharepoint-mcp/harness
+          printf '%s' "$TOKEN_B64" | base64 -d > ~/.cache/sharepoint-mcp/harness/token.json
+          chmod 600 ~/.cache/sharepoint-mcp/harness/token.json
+          echo "Harness token cache restored ($(wc -c < ~/.cache/sharepoint-mcp/harness/token.json) bytes)."
+
+      - name: Run harness tests against real SharePoint
+        env:
+          # Use plain-file backend explicitly (CI runners have no keyring).
+          SP_TOKEN_STORE: file
+        run: ./tests/run_tests.sh harness
