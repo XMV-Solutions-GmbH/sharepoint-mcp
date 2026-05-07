@@ -18,9 +18,7 @@ from sharepoint_mcp.tools.trash import (
     GRAPH_BETA_BASE,
     _extract_trash_items,
     _one_trash_item,
-    _restored_item_summary,
     trash_list,
-    trash_restore,
 )
 
 
@@ -190,62 +188,6 @@ def test_trash_list_rejects_file_url() -> None:
 
 
 # ---------------------------------------------------------------------
-# trash_restore()
-# ---------------------------------------------------------------------
-
-
-@respx.mock
-def test_trash_restore_returns_restored_item_summary_on_200(
-    store_with_fresh_token: None,
-) -> None:
-    del store_with_fresh_token
-    _mock_site_lookup()
-    respx.post(f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items/{ITEM_ID}/restore").respond(
-        json={"id": "back-1", "name": "lost.docx", "webUrl": "https://x/lost.docx"},
-    )
-    result = trash_restore(SITE_URL, ITEM_ID)
-    assert result == {
-        "id": "back-1",
-        "name": "lost.docx",
-        "web_url": "https://x/lost.docx",
-    }
-
-
-@respx.mock
-def test_trash_restore_returns_empty_on_204(store_with_fresh_token: None) -> None:
-    del store_with_fresh_token
-    _mock_site_lookup()
-    respx.post(f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items/{ITEM_ID}/restore").respond(204)
-    assert trash_restore(SITE_URL, ITEM_ID) == {}
-
-
-@respx.mock
-def test_trash_restore_propagates_404(store_with_fresh_token: None) -> None:
-    del store_with_fresh_token
-    _mock_site_lookup()
-    respx.post(f"{GRAPH_BETA_BASE}/sites/{SITE_ID}/recycleBin/items/{ITEM_ID}/restore").respond(
-        404, json={"error": {"code": "itemNotFound"}}
-    )
-    with pytest.raises(httpx.HTTPStatusError):
-        trash_restore(SITE_URL, ITEM_ID)
-
-
-def test_trash_restore_rejects_empty_url() -> None:
-    with pytest.raises(ValueError, match="non-empty site_url"):
-        trash_restore("", ITEM_ID)
-
-
-def test_trash_restore_rejects_empty_item_id() -> None:
-    with pytest.raises(ValueError, match="non-empty item_id"):
-        trash_restore(SITE_URL, "")
-
-
-def test_trash_restore_rejects_file_url() -> None:
-    with pytest.raises(ValueError, match="expects a site URL"):
-        trash_restore(f"{SITE_URL}/Shared Documents/x.docx", ITEM_ID)
-
-
-# ---------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------
 
@@ -281,7 +223,3 @@ def test_one_trash_item_handles_non_dict_deletedBy() -> None:
     """Defensive: malformed payload doesn't crash."""
     out = _one_trash_item({"deletedBy": "alice"})
     assert out["deleted_by"] == ""
-
-
-def test_restored_item_summary_normalises_missing_fields() -> None:
-    assert _restored_item_summary({}) == {"id": "", "name": "", "web_url": ""}

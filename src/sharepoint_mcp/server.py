@@ -45,7 +45,6 @@ from sharepoint_mcp.tools.sites import sites as _do_sites
 from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
-from sharepoint_mcp.tools.trash import trash_restore as _do_trash_restore
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
@@ -394,27 +393,6 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             name=name,
             profile=_get_profile(),
         )
-
-    @mcp_instance.tool(
-        annotations=ToolAnnotations(
-            title="Restore SharePoint Recycle Bin Item",
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=False,
-        ),
-        description=(
-            "Restore an item from the SharePoint site's recycle bin to its "
-            "original location. `item_id` comes from sp_trash_list. Not "
-            "destructive (recovers data) but DOES change observable site "
-            "state. Returns the restored item's id, name, web_url when "
-            "Graph populates them; empty dict on a 204-style success. "
-            "NOTE: uses Microsoft Graph's /beta endpoint — see sp_trash_list "
-            "for the rationale."
-        ),
-    )
-    def sp_trash_restore(site_url: str, item_id: str) -> dict[str, Any]:
-        return _do_trash_restore(site_url, item_id, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(

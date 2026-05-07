@@ -1,19 +1,26 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Recycle-bin tools (closes #50).
+"""Recycle-bin tools (closes #50, partial).
 
 - `sp_trash_list(site_url)` — list items in the site's recycle bin.
-- `sp_trash_restore(site_url, item_id)` — restore an item from the
-  recycle bin to its original location.
 
-**Both tools currently use Microsoft Graph's `/beta` endpoints.**
-The site-level recycle-bin API has not yet been promoted to v1.0
-(as of 2026-05-07). Beta endpoints are stable enough that other
-tools rely on them (e.g. SharePoint web UI, SharePoint admin
-center), but Microsoft reserves the right to change the schema.
-We pin to the documented beta shape and will migrate to v1.0
-when it lands. See <https://learn.microsoft.com/en-us/graph/api/recyclebin-list-items?view=graph-rest-beta>.
+`sp_trash_restore` is **deferred**. Microsoft Graph's beta endpoint
+at `/beta/sites/{id}/recycleBin/items` exposes the listing, but no
+`/restore` action is currently documented or available on
+recycleBinItem at the site scope (only on SharePoint Embedded
+fileStorageContainer recycleBin items). Until Microsoft surfaces a
+restore action — or we add a SharePoint REST API fallback — restore
+must be done via the SharePoint web UI. Tracked in a follow-up
+ticket; see CHANGELOG / issue #50 thread.
+
+`sp_trash_list` uses Microsoft Graph's `/beta` endpoint. The
+site-level recycle-bin API has not been promoted to v1.0 (as of
+2026-05-07). Beta is stable enough that production tools rely on
+it (SharePoint web UI, admin center), but Microsoft reserves the
+right to change the schema. We pin to the documented beta shape
+and will migrate to v1.0 when it lands. See
+<https://learn.microsoft.com/en-us/graph/api/recyclebin-list-items?view=graph-rest-beta>.
 
 Result shape for `sp_trash_list`:
 
@@ -25,9 +32,6 @@ Result shape for `sp_trash_list`:
         "deleted_from_location": "<original folder path>",
         "deleted_by": "<display name or empty>",
     }
-
-The `id` is what you pass to `sp_trash_restore`. The original location
-helps the agent confirm "yes this is the file the user meant".
 """
 
 from __future__ import annotations
@@ -102,63 +106,6 @@ def trash_list(
             client.close()
 
 
-def trash_restore(
-    site_url: str,
-    item_id: str,
-    *,
-    profile: str = "default",
-    http: httpx.Client | None = None,
-) -> dict[str, Any]:
-    """Restore a single item from the recycle bin to its original location.
-
-    `item_id` is the id field returned by `sp_trash_list`.
-
-    Returns a dict with the restored item's id, name, web_url (when
-    Graph populates them on restore — beta sometimes returns 204 No
-    Content for a successful restore, in which case we return an
-    empty dict — the agent should follow up with the appropriate
-    read tool to confirm the file is back).
-
-    Raises:
-        ValueError: empty inputs.
-        httpx.HTTPStatusError: any non-2xx from Graph beta. 404 means
-            the item-id is unknown (already restored, or wrong site).
-    """
-    if not site_url or not site_url.strip():
-        raise ValueError("sp_trash_restore requires a non-empty site_url")
-    if not item_id or not item_id.strip():
-        raise ValueError("sp_trash_restore requires a non-empty item_id")
-
-    hostname, site_path, item_path = parse_sharepoint_url(site_url)
-    if item_path:
-        raise ValueError(
-            f"sp_trash_restore expects a site URL, not a file/folder URL "
-            f"(got {site_url!r}; item path {item_path!r}).",
-        )
-
-    token = get_token(profile)
-    headers = {"Authorization": f"Bearer {token}"}
-    client = http if http is not None else httpx.Client(timeout=30.0)
-    try:
-        site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-        response = client.post(
-            f"{GRAPH_BETA_BASE}/sites/{site_id}/recycleBin/items/{item_id}/restore",
-            headers=headers,
-        )
-        response.raise_for_status()
-        # 200/201 returns the restored item; 204 returns nothing.
-        if response.status_code in (200, 201) and response.content:
-            try:
-                payload = response.json()
-            except ValueError:
-                return {}
-            return _restored_item_summary(payload)
-        return {}
-    finally:
-        if http is None:
-            client.close()
-
-
 def _extract_trash_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
     raw = payload.get("value", [])
     if not isinstance(raw, list):
@@ -183,9 +130,3 @@ def _one_trash_item(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _restored_item_summary(payload: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "id": str(payload.get("id") or ""),
-        "name": str(payload.get("name") or ""),
-        "web_url": str(payload.get("webUrl") or ""),
-    }

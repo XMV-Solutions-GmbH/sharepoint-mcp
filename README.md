@@ -145,11 +145,12 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
 | `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
 | `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
-| `sp_trash_restore(site_url, item_id)` | Restore an item from the site's recycle bin to its original location. `item_id` comes from `sp_trash_list`. Not destructive (recovers data) but does change observable site state. *Uses Graph beta endpoint — see note below.* |
 
-#### Recycle bin: beta endpoint
+#### Recycle bin: list-only, beta endpoint
 
-`sp_trash_list` and `sp_trash_restore` currently call Microsoft Graph's `/beta` endpoints — the site-level recycle-bin API has not yet been promoted to v1.0. Stable enough that production tools (SharePoint web UI, admin center) rely on it, but Microsoft reserves the right to change the schema. We pin to the documented beta shape and will migrate to v1.0 when it lands.
+`sp_trash_list` calls Microsoft Graph's `/beta` endpoint. The site-level recycle-bin listing has not yet been promoted to v1.0; the beta endpoint is stable enough that SharePoint's own web UI / admin center rely on it, but the schema can change. We pin to the documented shape and will migrate to v1.0 when it lands.
+
+Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/restore` action for site-recycle-bin items (only on SharePoint Embedded `fileStorageContainer` recycle bins). Use the SharePoint web UI to restore individual items; we'll add `sp_trash_restore` once Microsoft surfaces the action or we add a SharePoint REST API fallback.
 
 #### Large files
 

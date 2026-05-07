@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_trash_list / sp_trash_restore (#50).
+"""Harness tests for sp_trash_list (#50, partial).
 
-Lifecycle: publish a throwaway file -> delete it via raw Graph ->
-list trash and assert it's there -> restore it -> read tool confirms
-it's back -> clean up.
+`sp_trash_restore` is not implemented because Microsoft Graph's
+beta site recycle-bin endpoint doesn't expose a restore action
+(only the SharePoint Embedded fileStorageContainer recycleBin does).
+We list-only here; restore stays in the v0.4 backlog until either
+Microsoft adds the action or we implement a SharePoint REST API
+fallback.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from sharepoint_mcp.tools._common import (
     resolve_site_id,
 )
 from sharepoint_mcp.tools.publish import publish
-from sharepoint_mcp.tools.trash import trash_list, trash_restore
+from sharepoint_mcp.tools.trash import trash_list
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -44,11 +47,8 @@ def _skip_if_no_harness() -> None:
 
 @pytest.fixture
 def published_then_deleted(tmp_path: Path) -> Iterator[tuple[str, str]]:
-    """Publish a unique file, delete it via raw Graph, yield (filename, url).
-
-    On teardown: best-effort delete again in case the test re-restored the
-    file but didn't clean up.
-    """
+    """Publish a unique file, delete it via raw Graph (which sends it to
+    the recycle bin), yield (filename, url)."""
     _skip_if_no_harness()
     run_id = uuid.uuid4().hex[:8]
     name = f"trash-harness-{run_id}.txt"
@@ -58,56 +58,25 @@ def published_then_deleted(tmp_path: Path) -> Iterator[tuple[str, str]]:
 
     publish(str(local), HARNESS_FOLDER_URL, name=name, profile=HARNESS_PROFILE)
     _delete_file_to_recycle_bin(url)
-
-    try:
-        yield name, url
-    finally:
-        # If the test left the file un-restored, nothing to clean up.
-        # If the test restored the file, delete it back to recycle bin.
-        try:
-            _delete_file_to_recycle_bin(url)
-        except Exception:
-            pass
+    yield name, url
 
 
 def test_trash_list_finds_recently_deleted_file(
     published_then_deleted: tuple[str, str],
 ) -> None:
+    """With $orderby=deletedDateTime+desc, our just-deleted file is at the top."""
     name, _ = published_then_deleted
-    items = trash_list(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
+    items = trash_list(HARNESS_SITE_URL, profile=HARNESS_PROFILE, limit=50)
     assert isinstance(items, list)
     matching = [it for it in items if it.get("name") == name]
-    assert matching, f"deleted file {name!r} not found in recycle bin: {items!r}"
+    assert matching, f"deleted file {name!r} not found in top-50 of recycle bin"
     assert matching[0]["id"]
     assert matching[0]["deleted_date_time"]
-
-
-def test_trash_restore_brings_file_back(
-    published_then_deleted: tuple[str, str],
-) -> None:
-    name, _ = published_then_deleted
-    items = trash_list(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
-    matching = [it for it in items if it.get("name") == name]
-    if not matching:
-        pytest.skip(f"file {name!r} disappeared from recycle bin between tests")
-    item_id = matching[0]["id"]
-    trash_restore(HARNESS_SITE_URL, item_id, profile=HARNESS_PROFILE)
-    # Confirm it's no longer in trash
-    items_after = trash_list(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
-    still_there = [it for it in items_after if it.get("id") == item_id]
-    assert not still_there, "item still in recycle bin after restore"
 
 
 def test_trash_list_validation_does_not_need_harness() -> None:
     with pytest.raises(ValueError, match="non-empty site_url"):
         trash_list("", profile=HARNESS_PROFILE)
-
-
-def test_trash_restore_validation_does_not_need_harness() -> None:
-    with pytest.raises(ValueError, match="non-empty site_url"):
-        trash_restore("", "id", profile=HARNESS_PROFILE)
-    with pytest.raises(ValueError, match="non-empty item_id"):
-        trash_restore(HARNESS_SITE_URL, "", profile=HARNESS_PROFILE)
 
 
 # ---------------------------------------------------------------------
