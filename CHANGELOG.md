@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No entries.
+
+## [v0.4.0] — 2026-05-08
+
 ### Added — integrated MCP-tool login flow
 
 - **`sp_login_begin(profile?, force?)`** — non-blocking. Initiates Microsoft Identity Device Code login as an MCP tool; returns within ~1s with `user_code` + `verification_url`. Background polling task writes the token on success. Idempotent unless `force=True`. (#75)
