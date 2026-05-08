@@ -8,7 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Tracked in the v0.4 backlog.
+### Added — integrated MCP-tool login flow
+
+- **`sp_login_begin(profile?, force?)`** — non-blocking. Initiates Microsoft Identity Device Code login as an MCP tool; returns within ~1s with `user_code` + `verification_url`. Background polling task writes the token on success. Idempotent unless `force=True`. (#75)
+- **`sp_login_status(profile?)`** — three states the agent can act on directly: `signed_in` (valid token on disk, regardless of how it got there), `pending` (Device Code flow in progress), `none` (agent should call `sp_login_begin`). Critically: `signed_in` is determined by an active probe of the token cache, so a user who logged in via CLI days ago shows up correctly. (#76)
+- Both tools' MCP descriptions include UX guidance for relaying the verification URL + user code to the user — code FIRST in its own code block (no labels), URL SECOND as a plain auto-link below. Optimises mobile copy → click → paste workflow.
+- README has a new "Login from an MCP client" section showing the two-call agent pattern. CLI `login` / `logout` remain documented as the manual fallback path.
+
+### Switched
+
+- The four `sharepoint_mcp/auth/*.py` modules are now thin shims over [`mcp-microsoft-graph-auth`](https://pypi.org/project/mcp-microsoft-graph-auth/) (>=0.1.1). Backend implementations (Device Code primitives, TokenStore backends, service-principal client-credentials grant, `LoginSessionRegistry`) live in the shared library now. SharePoint-specific defaults (multi-tenant client_id, scopes, env-var conventions) stay here. (#74)
+- `EncryptedFileTokenStore` now raises `NoUsableTokenStoreError` at construction time when `SP_TOKEN_PASSPHRASE` is empty (eager validation), rather than on first use — catches misconfigured CI faster.
+
+### Limitations
+
+- Pending login sessions live in the MCP server process. A server restart mid-flow drops them; the agent must call `sp_login_begin` again. Documented in README under "Login from an MCP client".
+- Cross-process file lock on the token cache (sharepoint-mcp issue #77) is **deferred to a follow-up**. Concurrent CLI + tool-flow login on the same profile is not actively coordinated; in practice each path uses an atomic write so one wins cleanly, but the typed `concurrent_login_attempt` error path is a future improvement.
 
 ## [v0.3.0] — 2026-05-07
 
