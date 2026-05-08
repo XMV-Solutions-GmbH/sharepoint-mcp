@@ -187,7 +187,7 @@ The agent can drive sign-in directly via two MCP tools — no terminal shell-out
 
 The user-facing chat output should look like:
 
-```
+```text
 CCQ8U66HZ
 ```
 
