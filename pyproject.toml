@@ -8,7 +8,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-server-sharepoint"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for SharePoint document libraries with audit-preserving checkout/checkin."
 readme = "README.md"
 requires-python = ">=3.11"
