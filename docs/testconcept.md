@@ -21,7 +21,7 @@ The harness layer is the **gate** per `ENGINEERING_PRINCIPLES.md` § 5: no v0.1 
 ## What runs where
 
 - `./tests/run_tests.sh` (default = `unit + integration`) — runs in CI on every PR. No SharePoint credentials needed.
-- `./tests/run_tests.sh harness` — requires `harness` profile token cache (run `uv run mcp-server-sharepoint login --profile harness` once). Runs from the developer machine; runs in CI as a separate job once `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret is wired (see [#25](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/25)).
+- `./tests/run_tests.sh harness` — requires `harness` profile token cache (run `uv run mcp-server-sharepoint login --profile harness` once). Runs from the developer machine and in CI via the `SHAREPOINT_HARNESS_TOKEN_JSON` repo secret. The token rotates every ~60-90 days; renew with `./scripts/renew-harness-token.sh` (see "Renewing the harness token" below).
 - `./tests/run_tests.sh all` — unit + integration + harness in one shot.
 
 The `tests/conftest.py` auto-marks tests by their parent directory so `pytest -m unit` / `-m integration` / `-m harness` filter correctly without each test having to apply the marker by hand.
@@ -52,9 +52,19 @@ Refresh token cached at `~/.cache/sharepoint-mcp/harness/token.json` (mode 0600)
 
 **CI**:
 
-The harness CI job receives the harness refresh token via the `SHAREPOINT_HARNESS_REFRESH_TOKEN` secret (plus the optional `SP_TOKEN_PASSPHRASE` if you choose the encrypted-file backend). The job materialises the token cache at the start, runs `./tests/run_tests.sh harness`, and discards the runner.
+The harness CI job receives the cached token (refresh token + access token, base64-encoded) via the `SHAREPOINT_HARNESS_TOKEN_JSON` secret. The job materialises the token cache at the start, runs `./tests/run_tests.sh harness`, and discards the runner.
 
-When the token expires (typically every ~60 days), an admin re-runs `uv run mcp-server-sharepoint login --profile harness` locally and updates the GitHub secret. There's no automatic refresh-the-secret mechanism — that would require either client-credentials (which we don't use for compliance reasons) or a long-lived service-principal seed (also off the table for v0.1).
+### Renewing the harness token
+
+Microsoft Identity rotates refresh tokens every ~60-90 days, so the harness secret is a recurring monthly maintenance chore. The flow is automated via:
+
+```bash
+./scripts/renew-harness-token.sh
+```
+
+Walks through Microsoft's Device Code login for the `d.koller@xmv.de` harness account, runs a `/me` smoke test to confirm the new token is valid, base64-encodes the cached `~/.cache/sharepoint-mcp/harness/token.json`, and uploads it to the repo as `SHAREPOINT_HARNESS_TOKEN_JSON` via `gh secret set`. CI's next harness run picks it up automatically — no other manual steps.
+
+There's no automatic refresh-the-secret mechanism. That would require either client-credentials (which we don't use here for compliance reasons — `sp_*` tools default to delegated user auth so audit-log entries stay attributed to a real human) or a long-lived service-principal seed (also off the table for the harness sandbox).
 
 ---
 

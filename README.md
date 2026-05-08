@@ -327,6 +327,18 @@ uv sync --extra dev
 ./tests/run_tests.sh harness
 ```
 
+### Renewing the harness token
+
+The CI harness job authenticates via a refresh token stored as the GitHub repo secret `SHAREPOINT_HARNESS_TOKEN_JSON`. Microsoft Identity rotates refresh tokens roughly every 60-90 days, so this is a recurring monthly maintenance chore for the maintainer.
+
+A one-command script handles the whole flow — Device Code login, `/me` smoke test, base64-encoding the cached token, `gh secret set` against the repo:
+
+```bash
+./scripts/renew-harness-token.sh
+```
+
+Walks through the Microsoft Device Code prompt, then uploads the new token to GitHub. After it finishes, CI's next harness run picks up the fresh token automatically. No other manual steps.
+
 | Document | What's in it |
 |---|---|
 | [`docs/app-concept.md`](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/blob/main/docs/app-concept.md) | Vision, MVP scope, MCP tool surface, auth, conflict model |
