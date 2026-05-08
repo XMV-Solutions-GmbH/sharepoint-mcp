@@ -3,40 +3,47 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """OAuth 2.0 Device Code Flow + refresh-token client against Microsoft Identity.
 
-Two HTTP-level primitives used by the higher-level `auth.__init__` API:
+Thin shim over `mcp-microsoft-graph-auth`'s `device_code` module
+that supplies SharePoint-specific defaults: the bundled multi-tenant
+Entra app's client_id, the SharePoint-flavoured Graph scopes, and
+the multi-tenant `organizations` authority.
 
-- `request_device_code()` — POST /devicecode, returns the secret
-  device_code we poll with plus the human-facing challenge
-  (`user_code`, verification URL, polling interval).
-- `poll_for_token()` — POST /token (grant_type=device_code) in a loop
-  until success, slow_down, expired_token, or access_denied.
-- `refresh_access_token()` — POST /token (grant_type=refresh_token)
-  for silent token renewal.
-
-Synchronous on purpose: the flows are HTTP request/response with
-modest latency; sync is debuggable, and the MCP tool layer wraps
-calls in `asyncio.to_thread` if it needs them off the event loop.
-Refresh in particular is sub-second.
+Each function delegates to the shared library after applying the
+defaults. Existing imports (`sharepoint_mcp.auth.flow.poll_for_token`)
+keep working without source-level changes.
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any
 
 import httpx
-
-from sharepoint_mcp.auth.tokens import CachedToken
+from mcp_microsoft_graph_auth.device_code import (
+    AUTHORITY_BASE,
+    AuthorizationDeniedError,
+    DeviceCodeChallenge,
+    DeviceCodeError,
+    DeviceCodeExpiredError,
+    RefreshTokenInvalidError,
+)
+from mcp_microsoft_graph_auth.device_code import (
+    poll_for_token as _lib_poll_for_token,
+)
+from mcp_microsoft_graph_auth.device_code import (
+    refresh_access_token as _lib_refresh_access_token,
+)
+from mcp_microsoft_graph_auth.device_code import (
+    request_device_code as _lib_request_device_code,
+)
+from mcp_microsoft_graph_auth.tokens import CachedToken
 
 # ---------------------------------------------------------------------
-# Defaults — see app-concept § Authentication. The client_id is the
-# XMV-published multi-tenant Entra app registration; users override
-# via SP_CLIENT_ID for BYO scenarios.
+# SharePoint-specific defaults — see app-concept § Authentication.
+# The client_id is the XMV-published multi-tenant Entra app
+# registration; users override via SP_CLIENT_ID for BYO scenarios.
 # ---------------------------------------------------------------------
 
-AUTHORITY_BASE = "https://login.microsoftonline.com"
 DEFAULT_CLIENT_ID = "cb7cf68d-90d5-4841-90a7-de3a40be280b"
 DEFAULT_AUTHORITY_TENANT = "organizations"
 DEFAULT_SCOPES = (
@@ -45,95 +52,25 @@ DEFAULT_SCOPES = (
     "User.Read",
     "offline_access",
 )
+
 DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 
-# Polling cap so a stuck `authorization_pending` response loop can't
-# spin forever past the device code's actual expiry. Microsoft's
-# device codes typically expire after 15 min; a 20 min cap leaves
-# margin without becoming a bug-hiding fallback.
-_MAX_POLL_DURATION_SECONDS = 1200
-
-
-def _authority_url(tenant: str) -> str:
-    return f"{AUTHORITY_BASE}/{tenant}"
-
-
-# ---------------------------------------------------------------------
-# Errors
-# ---------------------------------------------------------------------
-
-
-class DeviceCodeError(RuntimeError):
-    """Base class for Device Code flow failures."""
-
-
-class AuthorizationDeniedError(DeviceCodeError):
-    """User refused the authorisation prompt."""
-
-
-class DeviceCodeExpiredError(DeviceCodeError):
-    """The device code expired before the user completed sign-in."""
-
-
-class RefreshTokenInvalidError(RuntimeError):
-    """The refresh token was rejected by Microsoft Identity.
-
-    Caller's only recovery is full interactive re-login.
-    """
-
-
-# ---------------------------------------------------------------------
-# Device-code challenge value type
-# ---------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class DeviceCodeChallenge:
-    """The user-facing half of the Device Code flow.
-
-    Returned from `request_device_code()` so the caller can surface
-    `user_code` + `verification_uri` to the human (via stderr, an MCP
-    error response, or wherever the calling layer chooses).
-
-    `verification_uri_complete` is RFC 8628 §3.3.1 — an optional URL
-    with the user_code already embedded so the user only has to click
-    and pick an account. Microsoft Identity v2.0 doesn't currently
-    populate this for /devicecode, so it's almost always None. We
-    capture it anyway in case Microsoft adds it later or for non-MS
-    OAuth providers that do support it.
-    """
-
-    user_code: str
-    verification_uri: str
-    verification_uri_complete: str | None
-    expires_at: float
-    interval: int
-    message: str
-
-
-# ---------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------
-
-
-def _scope_string(scopes: tuple[str, ...] | list[str]) -> str:
-    return " ".join(scopes)
-
-
-def _build_cached_token(payload: dict[str, Any], requested_at: float) -> CachedToken:
-    """Convert Microsoft's `/token` 200 response into our CachedToken."""
-    expires_in = float(payload.get("expires_in", 0))
-    return CachedToken(
-        access_token=str(payload["access_token"]),
-        refresh_token=str(payload["refresh_token"]) if "refresh_token" in payload else None,
-        expires_at=requested_at + expires_in,
-        scope=str(payload.get("scope", "")),
-    )
-
-
-# ---------------------------------------------------------------------
-# Device Code flow
-# ---------------------------------------------------------------------
+__all__ = [
+    "AUTHORITY_BASE",
+    "DEFAULT_AUTHORITY_TENANT",
+    "DEFAULT_CLIENT_ID",
+    "DEFAULT_SCOPES",
+    "DEVICE_CODE_GRANT_TYPE",
+    "AuthorizationDeniedError",
+    "CachedToken",
+    "DeviceCodeChallenge",
+    "DeviceCodeError",
+    "DeviceCodeExpiredError",
+    "RefreshTokenInvalidError",
+    "poll_for_token",
+    "refresh_access_token",
+    "request_device_code",
+]
 
 
 def request_device_code(
@@ -143,36 +80,12 @@ def request_device_code(
     scopes: tuple[str, ...] = DEFAULT_SCOPES,
     http: httpx.Client | None = None,
 ) -> tuple[str, DeviceCodeChallenge]:
-    """Initiate the Device Code flow.
-
-    Returns `(device_code, challenge)`. `device_code` is the secret
-    token used in subsequent `/token` polls; never surface it to the
-    user. `challenge` carries the user-facing parts.
-    """
-    client = http if http is not None else httpx.Client(timeout=10.0)
-    try:
-        response = client.post(
-            f"{_authority_url(tenant)}/oauth2/v2.0/devicecode",
-            data={"client_id": client_id, "scope": _scope_string(scopes)},
-        )
-        response.raise_for_status()
-        payload = response.json()
-    finally:
-        if http is None:
-            client.close()
-
-    expires_in = float(payload["expires_in"])
-    uri_complete_raw = payload.get("verification_uri_complete")
-    return (
-        str(payload["device_code"]),
-        DeviceCodeChallenge(
-            user_code=str(payload["user_code"]),
-            verification_uri=str(payload["verification_uri"]),
-            verification_uri_complete=str(uri_complete_raw) if uri_complete_raw else None,
-            expires_at=time.time() + expires_in,
-            interval=int(payload.get("interval", 5)),
-            message=str(payload.get("message", "")),
-        ),
+    """Initiate the Device Code flow with SharePoint-flavoured defaults."""
+    return _lib_request_device_code(
+        client_id=client_id,
+        tenant=tenant,
+        scopes=scopes,
+        http=http,
     )
 
 
@@ -186,73 +99,16 @@ def poll_for_token(
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], float] = time.time,
 ) -> CachedToken:
-    """Poll `/token` until the user completes (or denies) sign-in.
-
-    Honours Microsoft's `interval` and `slow_down` semantics. Caps
-    total wait at `_MAX_POLL_DURATION_SECONDS` to bound runaway
-    `authorization_pending` loops.
-
-    `sleep` and `now` are injected for test determinism.
-
-    Returns the issued `CachedToken` on success. Raises
-    `AuthorizationDeniedError`, `DeviceCodeExpiredError`, or
-    `httpx.HTTPStatusError` for unexpected failures.
-    """
-    client = http if http is not None else httpx.Client(timeout=10.0)
-    started = now()
-    current_interval = interval
-    try:
-        while True:
-            if now() - started > _MAX_POLL_DURATION_SECONDS:
-                raise DeviceCodeExpiredError(
-                    f"Device-code polling exceeded {_MAX_POLL_DURATION_SECONDS}s "
-                    "without resolution.",
-                )
-            sleep(current_interval)
-            request_started = now()
-            response = client.post(
-                f"{_authority_url(tenant)}/oauth2/v2.0/token",
-                data={
-                    "grant_type": DEVICE_CODE_GRANT_TYPE,
-                    "client_id": client_id,
-                    "device_code": device_code,
-                },
-            )
-            if response.status_code == 200:
-                return _build_cached_token(response.json(), requested_at=request_started)
-
-            payload = (
-                response.json()
-                if response.headers.get("content-type", "").startswith("application/json")
-                else {}
-            )
-            error = str(payload.get("error", ""))
-            if error == "authorization_pending":
-                continue
-            if error == "slow_down":
-                current_interval += 5
-                continue
-            if error == "expired_token":
-                raise DeviceCodeExpiredError(
-                    "Device code expired before sign-in completed.",
-                )
-            if error == "access_denied":
-                raise AuthorizationDeniedError(
-                    "User refused the authorisation prompt.",
-                )
-            response.raise_for_status()
-            # If raise_for_status didn't fire (unexpected 2xx other than 200), bail.
-            raise DeviceCodeError(
-                f"Unexpected /token response: status={response.status_code} payload={payload!r}",
-            )
-    finally:
-        if http is None:
-            client.close()
-
-
-# ---------------------------------------------------------------------
-# Refresh-token flow
-# ---------------------------------------------------------------------
+    """Poll `/token` until the user completes (or denies) sign-in."""
+    return _lib_poll_for_token(
+        device_code=device_code,
+        client_id=client_id,
+        tenant=tenant,
+        interval=interval,
+        http=http,
+        sleep=sleep,
+        now=now,
+    )
 
 
 def refresh_access_token(
@@ -263,46 +119,11 @@ def refresh_access_token(
     scopes: tuple[str, ...] = DEFAULT_SCOPES,
     http: httpx.Client | None = None,
 ) -> CachedToken:
-    """Exchange a refresh token for a new access (and possibly refresh) token.
-
-    Microsoft typically rotates the refresh token; the returned
-    `CachedToken` carries whichever refresh token is now current. If
-    Microsoft does not include one (rare for delegated user flows
-    with `offline_access`), the `refresh_token` field is `None` and
-    the caller should treat the next expiry as a forced re-login.
-
-    Raises `RefreshTokenInvalidError` if Microsoft rejects the refresh
-    token (`invalid_grant`); the caller's only recovery is interactive
-    re-login.
-    """
-    client = http if http is not None else httpx.Client(timeout=10.0)
-    request_started = time.time()
-    try:
-        response = client.post(
-            f"{_authority_url(tenant)}/oauth2/v2.0/token",
-            data={
-                "grant_type": "refresh_token",
-                "client_id": client_id,
-                "refresh_token": refresh_token,
-                "scope": _scope_string(scopes),
-            },
-        )
-        if response.status_code == 200:
-            return _build_cached_token(response.json(), requested_at=request_started)
-        if response.status_code == 400:
-            payload = (
-                response.json()
-                if response.headers.get("content-type", "").startswith("application/json")
-                else {}
-            )
-            if str(payload.get("error", "")) == "invalid_grant":
-                raise RefreshTokenInvalidError(
-                    str(payload.get("error_description", "Refresh token rejected.")),
-                )
-        response.raise_for_status()
-        raise RefreshTokenInvalidError(
-            f"Unexpected /token response on refresh: status={response.status_code}",
-        )
-    finally:
-        if http is None:
-            client.close()
+    """Exchange a refresh token for a new access (and refresh) token."""
+    return _lib_refresh_access_token(
+        refresh_token=refresh_token,
+        client_id=client_id,
+        tenant=tenant,
+        scopes=scopes,
+        http=http,
+    )
