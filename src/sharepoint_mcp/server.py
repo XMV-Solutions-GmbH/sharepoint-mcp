@@ -28,6 +28,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from sharepoint_mcp.auth.login_tools import login_begin as _do_login_begin
+from sharepoint_mcp.auth.login_tools import login_status as _do_login_status
 from sharepoint_mcp.tools.bulk import open_many as _do_open_many
 from sharepoint_mcp.tools.bulk import save_many as _do_save_many
 from sharepoint_mcp.tools.changes import changes as _do_changes
@@ -78,6 +80,82 @@ def writes_enabled() -> bool:
     matching the read-only-default policy.
     """
     return os.environ.get(ALLOW_WRITES_ENV, "").strip().lower() in _TRUE_VALUES
+
+
+def register_login_tools(mcp_instance: FastMCP) -> None:
+    """Register the integrated-login MCP tools (sp_login_begin, sp_login_status).
+
+    These are always available — they're the prerequisite for using
+    everything else, so gating them by SP_ALLOW_WRITES would be a
+    chicken-and-egg trap.
+    """
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Begin SharePoint Sign-In",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        ),
+        description=(
+            "Initiate Microsoft Identity Device Code login for `profile` "
+            "(default 'default'). Non-blocking: returns within ~1s with "
+            "user_code + verification_url. A background task continues to "
+            "poll Microsoft Identity and writes the token on success — "
+            "the agent should poll sp_login_status until status is "
+            "'signed_in', or until the user completes / cancels the flow.\n\n"
+            "Idempotency: if a pending session already exists for this "
+            "profile, the existing session is returned unchanged unless "
+            "force=True (which cancels and restarts).\n\n"
+            "**UX guidance for surfacing the result to the user**: render "
+            "user_code FIRST in its own one-line code block (no labels, "
+            "no whitespace) and verification_url SECOND on its own line as "
+            "a plain auto-link (NOT in a code block). The user copies the "
+            "code first, then taps the link, then pastes into the page "
+            "that opens — this minimises app-switching on mobile / smartphone "
+            "MCP clients. URL inside a code block suppresses link rendering; "
+            "code with labels makes copy-paste include the label noise."
+        ),
+    )
+    async def sp_login_begin(
+        profile: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        return await _do_login_begin(
+            profile=profile if profile is not None else _get_profile(),
+            force=force,
+        )
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="SharePoint Sign-In Status",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Return the current sign-in state for `profile` (default 'default'). "
+            "Three states the agent can act on directly:\n\n"
+            "- 'signed_in' — valid token on disk (regardless of how it got there: "
+            "  CLI login, prior tool-flow, or just refreshed silently). "
+            "  signed_in_user_upn populated. The agent can proceed.\n"
+            "- 'pending' — Device Code flow in progress. user_code, "
+            "  verification_url, time_remaining_s populated.\n"
+            "- 'none' — no token, no flow. Agent should call sp_login_begin.\n\n"
+            "Recently-terminal sessions (`expired` / `failed` / `cancelled`) "
+            "surface their error via the `error` field instead of falling back "
+            "to 'none' — so the agent can render a specific failure message.\n\n"
+            "**UX guidance when status='pending'**: render user_code FIRST in "
+            "its own one-line code block (no labels), verification_url SECOND "
+            "as a plain auto-link below. User copies the code, taps the link, "
+            "pastes into the page that opens — same pattern as sp_login_begin."
+        ),
+    )
+    async def sp_login_status(profile: str | None = None) -> dict[str, Any]:
+        return await _do_login_status(
+            profile=profile if profile is not None else _get_profile(),
+        )
 
 
 def register_read_tools(mcp_instance: FastMCP) -> None:
@@ -780,6 +858,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
 def _build_server() -> FastMCP:
     """Build and return a FastMCP server with the right tools registered."""
     server = FastMCP("mcp-server-sharepoint")
+    register_login_tools(server)
     register_read_tools(server)
     if writes_enabled():
         register_write_tools(server)

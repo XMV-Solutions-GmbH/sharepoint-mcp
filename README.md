@@ -178,6 +178,36 @@ Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/res
 - **Token storage** is auto-detected at first use: OS keyring (macOS Keychain / Windows Credential Locker / Linux Secret Service) when available, mode-0600 plain JSON file as fallback (same convention as `gh auth`, `aws configure`). Optional encryption with `SP_TOKEN_PASSPHRASE` for paranoid setups or CI.
 - **Multi-customer / multi-tenant**: separate `SP_PROFILE` per tenant, each with its own token cache.
 
+#### Login from an MCP client (recommended for AI-mediated workflows)
+
+The agent can drive sign-in directly via two MCP tools — no terminal shell-out required:
+
+1. **Agent calls `sp_login_status`** first. If `status == "signed_in"`, just proceed; the user is already authenticated.
+2. **Otherwise calls `sp_login_begin`**, which returns immediately with a `user_code` and `verification_url`. The agent surfaces these to the user and polls `sp_login_status` until status flips to `signed_in` (or to a terminal `expired` / `failed`).
+
+The user-facing chat output should look like:
+
+```text
+CCQ8U66HZ
+```
+
+<https://login.microsoft.com/devicelogin>
+
+Code first in its own code block (so long-press copy yields just the code, no labels), URL second on its own line as a plain auto-link (so it's tappable on mobile). The user copies the code, taps the link, pastes into the page that opens — minimum app-switching. The MCP tool's description tells the agent this; agents that follow it produce a clean mobile UX.
+
+**Limitation: pending sessions live in the MCP server process.** If the server restarts mid-flow (Claude Code session ends, container redeployed) before the user enters the code, the session is lost — the agent must call `sp_login_begin` again. Persisting the asyncio polling task across restarts is non-trivial and deferred; if you hit this, file an issue.
+
+#### Manual fallback: CLI
+
+For terminal use or scripting, the original CLI subcommands still work:
+
+```bash
+uvx mcp-server-sharepoint login --profile <name>
+uvx mcp-server-sharepoint logout --profile <name>
+```
+
+Both write to the same token cache `sp_login_begin` does — you can sign in via CLI once, then the MCP server uses the cached token without ever hitting `sp_login_begin`.
+
 #### Service-principal mode (unattended automation)
 
 For CI / scheduled jobs where no human is in the loop, run with `SP_AUTH_MODE=service-principal` (or just set `SP_CLIENT_SECRET` — auto-detected). Required env vars: `SP_CLIENT_ID`, `SP_CLIENT_SECRET`, `SP_TENANT_ID`. The app registration must have **Application** Microsoft Graph permissions (`Files.ReadWrite.All`, `Sites.ReadWrite.All`) with admin consent recorded.
