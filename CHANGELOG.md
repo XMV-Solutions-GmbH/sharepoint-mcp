@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No entries.
 
+## [v0.4.1] — 2026-05-11
+
+Bug-fix release. No new features, no breaking changes.
+
+### Fixed
+
+- **`sp_list` / `sp_read` now work on URLs with localized document library names** (e.g. German `Freigegebene Dokumente`, Italian `Documenti condivisi`, Spanish `Documentos compartidos`). Previously these URLs round-tripped from `sp_search` results but failed with 404 when passed back into `sp_list` or `sp_read`, because the path-based Graph resolver only knew the English library name. `resolve_drive_item_full` gains a new first-fallback step: on primary 404, **strip the first path segment and retry against the default drive's root** before consulting the library-name list. This handles the "URL prefixed with the localized default-library display name" case (the dominant cause of #79) without locale enumeration. The existing library-name-search fallback continues to handle non-default custom libraries (`SiteAssets`, etc.). Closes [#79](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/79).
+
+### Added (internal)
+
+- **`sharepoint_mcp.tools._common.resolve_drive_item_by_share_url(client, web_url, headers)`** — new helper that wraps Microsoft Graph's `/shares/{u!base64}/driveItem` endpoint. Not used by `sp_list` / `sp_read` directly (that endpoint requires sharing-link access, which not all service-principal-style auth configurations have — empirically verified by the harness returning 403 on bare site-membership URLs), but exposed for future tools where the caller has a real shared-link URL. Encoding follows the Graph spec: urlsafe base64 of the UTF-8 URL bytes, stripped of `=` padding, prefixed with `u!`.
+
+### Engineering
+
+- 520 unit tests (was 506; +14 new — 4 for the `resolve_drive_item_by_share_url` helper, 2 for the new strip-first-segment fallback path in `resolve_drive_item_full`, plus regression tests in `test_read.py` and `test_list_folder.py` covering the round-trip on German URLs). Existing tests that 404 the primary path now mock the strip-retry as 404 too so the fall-through to library-search is exercised.
+
 ## [v0.4.0] — 2026-05-08
 
 ### Added — integrated MCP-tool login flow

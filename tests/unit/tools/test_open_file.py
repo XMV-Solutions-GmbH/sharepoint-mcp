@@ -161,6 +161,8 @@ def test_open_file_propagates_404_on_item_lookup(
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/policies/missing.docx").respond(
         404, json={"error": {"code": "itemNotFound"}}
     )
+    # Strip-segment retry (#79 fallback 1) — also 404.
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing.docx").respond(404)
     # Library fallback fires on 404; mock empty drive list so original 404 propagates.
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drives").respond(json={"value": []})
     with pytest.raises(httpx.HTTPStatusError):

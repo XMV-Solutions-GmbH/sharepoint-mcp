@@ -77,7 +77,9 @@ def list_folder(
 
         if folder_path:
             # Resolve via drive-item helper so non-default libraries
-            # (SiteAssets, custom libraries) work transparently.
+            # (SiteAssets, custom libraries, localized default-library
+            # display names) work transparently through the fallback
+            # chain in resolve_drive_item_full.
             item = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
             drive_id = item["parentReference"]["driveId"]
             item_id = item["id"]

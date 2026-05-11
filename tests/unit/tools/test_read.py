@@ -54,6 +54,23 @@ DRIVE_ID = "b!drive"
 ITEM_ID = "01ITEM"
 
 
+def _mock_share_lookup(file_name: str = "README.md") -> respx.Route:
+    """Primary resolver: `/shares/{shareId}/driveItem`. Match any
+    shareId — the encoding contains `:` and `/` which need URL-
+    escaping in `respx.get(...)` arguments, and the input URL varies
+    per test, so an `__regex` match is cleaner.
+    """
+    import re
+
+    return respx.get(re.compile(rf"{re.escape(GRAPH_BASE)}/shares/u!.*?/driveItem")).respond(
+        json={
+            "id": ITEM_ID,
+            "name": file_name,
+            "parentReference": {"driveId": DRIVE_ID},
+        },
+    )
+
+
 def _mock_site_lookup() -> respx.Route:
     return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(
         json={"id": SITE_ID},
@@ -108,6 +125,38 @@ def test_read_file_subfolder_path(store_with_fresh_token: None) -> None:
 
 
 @respx.mock
+def test_read_file_localized_library_name_roundtrip(store_with_fresh_token: None) -> None:
+    """Regression test for #79: German tenant URLs with 'Freigegebene
+    Dokumente' (the German display name of the default library) must
+    round-trip. resolve_drive_item_full's first-fallback strips the
+    library segment and retries against the default drive root."""
+    del store_with_fresh_token
+    _mock_site_lookup()
+    # Primary 404 (path includes the German library segment).
+    respx.get(
+        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/Freigegebene Dokumente/Finanzen/steuer.pdf"
+    ).respond(404, json={"error": {"code": "itemNotFound"}})
+    # First fallback: strip "Freigegebene Dokumente", try default drive.
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/Finanzen/steuer.pdf").respond(
+        json={
+            "id": ITEM_ID,
+            "name": "steuer.pdf",
+            "parentReference": {"driveId": DRIVE_ID},
+        },
+    )
+    respx.get(
+        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content",
+    ).respond(content=b"pdf-bytes")
+    path = read_file(
+        f"https://{SITE_HOST}{SITE_PATH}/Freigegebene Dokumente/Finanzen/steuer.pdf",
+    )
+    try:
+        assert Path(path).read_bytes() == b"pdf-bytes"
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+@respx.mock
 def test_read_file_sends_bearer_on_both_calls(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     site_route = _mock_site_lookup()
@@ -125,8 +174,8 @@ def test_read_file_sends_bearer_on_both_calls(store_with_fresh_token: None) -> N
 
 @respx.mock
 def test_read_file_propagates_404(store_with_fresh_token: None) -> None:
-    """The item lookup itself 404s now (used to be the content endpoint).
-    Library fallback adds one extra /drives lookup we mock to return empty."""
+    """Primary 404 → strip-first-segment retry 404 → library-search
+    finds no match → original 404 propagates."""
     del store_with_fresh_token
     _mock_site_lookup()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing.txt").respond(
