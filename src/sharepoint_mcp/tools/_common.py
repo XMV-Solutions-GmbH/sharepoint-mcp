@@ -13,6 +13,7 @@ to the tools/ subpackage".
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -156,10 +157,26 @@ def resolve_drive_item_full(
         primary.raise_for_status()
         return dict(primary.json())
 
-    # Library fallback: first segment of item_path may be a non-default
-    # library name (e.g. "SiteAssets"). List the site's drives, find a
-    # match by display name, retry against that drive's root.
     library_segment, _, rest = item_path.partition("/")
+
+    # Fallback 1 (#79): the first segment may be the LOCALIZED display
+    # name of the site's default library — German `Freigegebene
+    # Dokumente`, Italian `Documenti condivisi`, etc. Microsoft Graph
+    # addresses items in the default drive without the library
+    # segment, so stripping it and retrying against `/drive/root:/{rest}`
+    # often succeeds without any further lookup. Cheap (one extra
+    # GET); preserves existing English-default-tenant behaviour because
+    # primary already resolved there.
+    if rest:
+        default_retry_url = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{rest}"
+        default_retry = client.get(default_retry_url, headers=headers)
+        if default_retry.status_code != 404:
+            default_retry.raise_for_status()
+            return dict(default_retry.json())
+
+    # Fallback 2: first segment may be a non-default library name
+    # (e.g. `SiteAssets`, a custom library). List the site's drives,
+    # find a match by display name, retry against that drive's root.
     drive_id = _find_drive_id_by_name(client, site_id, library_segment, headers=headers)
     if drive_id is None:
         # No such library — re-raise the original 404 for clarity.
@@ -174,6 +191,46 @@ def resolve_drive_item_full(
     fallback = client.get(fallback_url, headers=headers)
     fallback.raise_for_status()
     return dict(fallback.json())
+
+
+def resolve_drive_item_by_share_url(
+    client: httpx.Client,
+    web_url: str,
+    *,
+    headers: dict[str, str],
+) -> dict[str, Any]:
+    """Resolve any SharePoint / OneDrive webUrl to a canonical driveItem.
+
+    Uses Microsoft Graph's `/shares/{shareId}/driveItem` endpoint with
+    a `u!`-prefixed base64url-encoded URL. This works for **any** URL
+    the caller has read access to — including URLs with **localized
+    library names** (`Freigegebene Dokumente` on German tenants,
+    `Documenti condivisi` on Italian, etc.), nested folders, and
+    custom (non-default) document libraries — in one round-trip,
+    without needing a separate site-id lookup or library-name
+    enumeration first.
+
+    Returns the full driveItem dict. The two stable identifiers the
+    caller usually wants are `item["parentReference"]["driveId"]`
+    and `item["id"]` — subsequent operations against
+    `/drives/{driveId}/items/{itemId}/...` work regardless of locale.
+
+    Encoding rules (per Microsoft Graph docs): standard base64url
+    (`urlsafe_b64encode`) of the UTF-8 URL bytes, strip trailing `=`
+    padding, prefix with `u!`. The `/` and `+` characters in the
+    base64 alphabet are not used (urlsafe variant uses `-` and `_`).
+
+    Fixes [#79](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/79):
+    `sp_list` / `sp_read` no longer 404 on localized library names.
+    """
+    encoded = base64.urlsafe_b64encode(web_url.encode("utf-8")).rstrip(b"=").decode("ascii")
+    share_id = f"u!{encoded}"
+    response = client.get(
+        f"{GRAPH_BASE}/shares/{share_id}/driveItem",
+        headers=headers,
+    )
+    response.raise_for_status()
+    return dict(response.json())
 
 
 def _find_drive_id_by_name(

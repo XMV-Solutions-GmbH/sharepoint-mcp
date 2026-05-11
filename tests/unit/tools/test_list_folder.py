@@ -111,6 +111,23 @@ def _mock_site_lookup() -> respx.Route:
     )
 
 
+def _mock_share_lookup(
+    name: str = "policies",
+    drive_id: str = "DID",
+    item_id: str = "FID",
+) -> respx.Route:
+    """Primary resolver for folder/file URLs: /shares/{u!base64}/driveItem."""
+    import re
+
+    return respx.get(re.compile(rf"{re.escape(GRAPH_BASE)}/shares/u!.*?/driveItem")).respond(
+        json={
+            "id": item_id,
+            "name": name,
+            "parentReference": {"driveId": drive_id},
+        },
+    )
+
+
 @respx.mock
 def test_list_folder_site_root(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
@@ -145,7 +162,7 @@ def test_list_folder_site_root(store_with_fresh_token: None) -> None:
 def test_list_folder_subfolder(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site_lookup()
-    # New flow: resolve subfolder driveItem first, then list /drives/.../children
+    # Resolve subfolder driveItem first, then list /drives/.../children
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/policies").respond(
         json={"id": "FID", "name": "policies", "parentReference": {"driveId": "DID"}},
     )
@@ -164,6 +181,40 @@ def test_list_folder_subfolder(store_with_fresh_token: None) -> None:
     )
     items = list_folder(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/policies")
     assert items[0]["name"] == "iso27001.docx"
+
+
+@respx.mock
+def test_list_folder_localized_library_name(store_with_fresh_token: None) -> None:
+    """Regression test for #79: German-tenant URL with 'Freigegebene
+    Dokumente'. The resolver's first fallback strips the localized
+    library segment and retries against the default drive."""
+    del store_with_fresh_token
+    _mock_site_lookup()
+    # Primary 404 with the German library in the path.
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/Freigegebene Dokumente/Finanzen").respond(
+        404, json={"error": {"code": "itemNotFound"}}
+    )
+    # First-fallback retry: strip "Freigegebene Dokumente", try default drive.
+    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/Finanzen").respond(
+        json={"id": "FID-de", "name": "Finanzen", "parentReference": {"driveId": "DID"}},
+    )
+    respx.get(f"{GRAPH_BASE}/drives/DID/items/FID-de/children").respond(
+        json={
+            "value": [
+                {
+                    "name": "steuer.pdf",
+                    "file": {},
+                    "size": 12345,
+                    "lastModifiedDateTime": "2026-04-15T10:00:00Z",
+                    "webUrl": "https://x/Freigegebene Dokumente/Finanzen/steuer.pdf",
+                },
+            ],
+        },
+    )
+    items = list_folder(
+        f"https://{SITE_HOST}{SITE_PATH}/Freigegebene Dokumente/Finanzen",
+    )
+    assert items[0]["name"] == "steuer.pdf"
 
 
 @respx.mock
@@ -204,10 +255,10 @@ def test_list_folder_propagates_404_on_site_lookup(store_with_fresh_token: None)
 
 @respx.mock
 def test_list_folder_propagates_404_on_folder(store_with_fresh_token: None) -> None:
+    """Primary 404 → strip-first-segment retry 404 → library-search empty
+    → original 404 propagates."""
     del store_with_fresh_token
     _mock_site_lookup()
-    # The driveItem lookup itself 404s now. Library fallback adds an empty
-    # /drives lookup (no library matched) and re-raises the original 404.
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing").respond(
         404, json={"error": {"code": "itemNotFound"}}
     )
