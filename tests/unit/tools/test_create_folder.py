@@ -98,12 +98,12 @@ def test_create_folder_deep_path_all_new(store_with_fresh_token: None) -> None:
         201,
         json=_folder_created_response("2026"),
     )
-    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
+    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026:/children").respond(
         201,
         json=_folder_created_response("Q2"),
     )
     q2_web_url = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/2026/Q2/Reports"
-    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2/children").respond(
+    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2:/children").respond(
         201,
         json=_folder_created_response("Reports", web_url=q2_web_url),
     )
@@ -132,7 +132,7 @@ def test_create_folder_partial_path_exists(store_with_fresh_token: None) -> None
     )
     # "2026/Q2" is new
     q2_url = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/2026/Q2"
-    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
+    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026:/children").respond(
         201,
         json=_folder_created_response("Q2", web_url=q2_url),
     )
@@ -153,7 +153,7 @@ def test_create_folder_all_segments_exist(store_with_fresh_token: None) -> None:
         409,
         json=_name_already_exists_409(),
     )
-    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
+    respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026:/children").respond(
         409,
         json=_name_already_exists_409(),
     )

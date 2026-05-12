@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No entries.
 
+## [v0.6.1] — 2026-05-12
+
+Bug-fix release. No new features, no breaking changes.
+
+### Fixed
+
+- **`sp_create_folder`: missing `:` in nested-path Graph URL** (closes [#90](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/90)). The endpoint for creating a folder under an existing parent used `drive/root:/{parent}/children` instead of the correct `drive/root:/{parent}:/children`. Microsoft Graph's path-based addressing syntax requires the trailing `:` to close the path context before appending the relationship segment. The root-level case (`drive/root/children`) was unaffected. The incorrect URL was accepted by the mock layer in unit tests (mocks match whatever URL the code produces) — the bug was only visible against the real Graph API.
+
+### Engineering
+
+- Added `tests/harness/test_create_folder_and_upload.py` — 6 harness tests against the real SharePoint sandbox (absent in v0.6.0). These tests would have caught the URL bug immediately. Going forward, harness tests are part of the implementation of any tool that calls Graph, not a follow-up. Fixed the 3 corresponding unit-test mock URLs (`root:/{parent}/children` → `root:/{parent}:/children`).
+
 ## [v0.6.0] — 2026-05-12
 
 Two new write tools that complete the creation surface — previously the

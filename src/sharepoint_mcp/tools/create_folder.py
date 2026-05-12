@@ -102,7 +102,7 @@ def create_folder(
 
             if parent_parts:
                 parent_str = "/".join(parent_parts)
-                endpoint = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{parent_str}/children"
+                endpoint = f"{GRAPH_BASE}/sites/{site_id}/drive/root:/{parent_str}:/children"
             else:
                 endpoint = f"{GRAPH_BASE}/sites/{site_id}/drive/root/children"
 
