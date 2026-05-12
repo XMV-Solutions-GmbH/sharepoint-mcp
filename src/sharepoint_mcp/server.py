@@ -20,7 +20,6 @@ prompt.
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from typing import Any
@@ -28,6 +27,13 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from sharepoint_mcp.auth.flow import (
+    ALLOW_WRITES_ENV as _AUTH_FLOW_ALLOW_WRITES_ENV,
+)
+from sharepoint_mcp.auth.flow import (
+    SharepointConsentNotConfiguredError,
+    validate_consent_config,
+)
 from sharepoint_mcp.auth.login_tools import login_begin as _do_login_begin
 from sharepoint_mcp.auth.login_tools import login_status as _do_login_status
 from sharepoint_mcp.tools.bulk import open_many as _do_open_many
@@ -65,8 +71,8 @@ from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
-ALLOW_WRITES_ENV = "SP_ALLOW_WRITES"
-_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+# Re-exported for backwards-compat with v0.4.x importers.
+ALLOW_WRITES_ENV = _AUTH_FLOW_ALLOW_WRITES_ENV
 
 
 def _get_profile() -> str:
@@ -74,12 +80,16 @@ def _get_profile() -> str:
 
 
 def writes_enabled() -> bool:
-    """True iff `SP_ALLOW_WRITES` is set to a recognised truthy value.
+    """True iff `SP_ALLOW_WRITES` is set to exactly `"true"`.
 
-    Default (unset / empty / anything else): writes are NOT enabled,
-    matching the read-only-default policy.
+    Strict parser since v0.5 — raises
+    `SharepointConsentNotConfiguredError` if the env var is unset,
+    empty, or has a value other than `true` or `false`. There is no
+    implicit default; the operator must consciously decide. See
+    [#37 in outlook-mcp](https://github.com/XMV-Solutions-GmbH/outlook-mcp/issues/37)
+    for the user-side rationale of the same pattern.
     """
-    return os.environ.get(ALLOW_WRITES_ENV, "").strip().lower() in _TRUE_VALUES
+    return validate_consent_config()
 
 
 def register_login_tools(mcp_instance: FastMCP) -> None:
@@ -856,25 +866,35 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
 
 
 def _build_server() -> FastMCP:
-    """Build and return a FastMCP server with the right tools registered."""
+    """Build and return a FastMCP server with the right tools registered.
+
+    Validates the consent env var (`SP_ALLOW_WRITES`) up-front via
+    `validate_consent_config()` — if unset or has a non-`true`/`false`
+    value, raises `SharepointConsentNotConfiguredError` with a clear
+    onboarding-help message. The exception is allowed to propagate so
+    the operator sees it on stderr; no silent read-only fallback.
+    """
+    writes = validate_consent_config()
     server = FastMCP("mcp-server-sharepoint")
     register_login_tools(server)
     register_read_tools(server)
-    if writes_enabled():
+    if writes:
         register_write_tools(server)
-    else:
-        # One-line note on stderr so users running uvx interactively
-        # see why writes are absent. Quiet by default to avoid noise
-        # in MCP-client-launched contexts (Claude Code captures stderr
-        # but doesn't surface it loudly).
-        logging.getLogger("sharepoint-mcp").info(
-            "SP_ALLOW_WRITES not set — read-only mode (sp_open / sp_save / sp_release "
-            "not registered). Set SP_ALLOW_WRITES=true to enable writes.",
-        )
     return server
 
 
-mcp: FastMCP = _build_server()
+# Build at module-import time so MCP-client launchers (uvx, etc.)
+# get the consent-validation error immediately on startup rather
+# than mid-protocol-handshake.
+try:
+    mcp: FastMCP = _build_server()
+except SharepointConsentNotConfiguredError as err:
+    # Print the help text to stderr so MCP-client log windows show
+    # it verbatim — the message IS the onboarding doc. Then re-raise
+    # so the process exits non-zero.
+    sys.stderr.write(str(err) + "\n")
+    sys.stderr.flush()
+    raise
 
 
 def run() -> None:

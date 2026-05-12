@@ -10,6 +10,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No entries.
 
+## [v0.5.0] — 2026-05-12
+
+**Breaking change** to the consent-env-var contract — same pattern as `outlook-mcp` v0.4.0. Operators upgrading from v0.4.x must update their `.mcp.json` to set `SP_ALLOW_WRITES` to exactly `"true"` or `"false"`; legacy truthy values (`1`, `yes`, `on`) and unset / empty are now rejected at startup. Plus the OAuth consent screen now reflects the operator's actual decision — with `SP_ALLOW_WRITES=false` the prompt requests only `Files.Read.All` + `Sites.Read.All` instead of the ReadWrite variants.
+
+### Changed (breaking)
+
+- **`SP_ALLOW_WRITES` must be set to exactly `"true"` or `"false"`** (case-insensitive, trimmed). Any other value — including unset / empty / legacy `1`/`yes`/`on` — causes the server (and the CLI `login` subcommand) to refuse to start with a formatted onboarding-help message printed to stderr. The motivation matches the outlook-mcp issue #37 user-side rationale: operators silently landing in read-only mode without realising writes were a separately-opt-in feature was the dominant onboarding failure mode in v0.4.x.
+- **OAuth scopes now respect the consent decision.** With `SP_ALLOW_WRITES=false`, `resolve_scopes()` requests `Files.Read.All` + `Sites.Read.All` (read-only variants) instead of the ReadWrite ones. With `=true`, the ReadWrite variants replace them. The consent screen on a fresh login reads accordingly. Previously the OAuth scopes were ALWAYS ReadWrite regardless of the `SP_ALLOW_WRITES` decision, which was inconsistent with the "read-only by default" tool-surface story.
+- **Server start is no longer silently read-only** when consent is unset. Previously the server fell through to read-only mode with an INFO log; operators commonly missed the log and assumed writes were broken. The new error message is itself the documentation.
+
+### Added
+
+- **`sharepoint_mcp.auth.flow.SharepointConsentNotConfiguredError`** — new exception class raised by the strict consent parser. Re-exported from `auth.flow.__all__` so downstream tooling can catch it.
+- **`sharepoint_mcp.auth.flow.validate_consent_config()`** — returns `writes_enabled` (True/False) or raises. Single source of truth; called from `_build_server()` at module import and from `cli.main()` before the login flow.
+- **`sharepoint_mcp.auth.flow.resolve_scopes()`** — runtime-resolving scope tuple. Returns the read-only base scopes when `SP_ALLOW_WRITES=false`, ReadWrite variants when `=true`. Resolved at call time so `monkeypatch.setenv` flips behaviour without re-imports.
+
+### Engineering
+
+- 529 unit tests (was 506; +23 new). New tests cover: strict env-var parser, scope resolution for both flags, server-build refusal on unset / legacy-truthy values, CLI gating, scope-tuple shape against backwards-compat aliases.
+- New harness test (`tests/harness/test_consent_gate.py`) — 6 end-to-end checks against the real harness profile + token-store. Confirms scope resolution doesn't break the cached harness token, `_build_server()` exposes / withholds write tools per env-var decision, and the error message contains the actionable strings (`SP_ALLOW_WRITES`, `"true"`, `"false"`, `.mcp.json`).
+
+### Migration from v0.4.x
+
+Add the explicit decision to your `.mcp.json` env section:
+
+```jsonc
+{
+  "mcpServers": {
+    "sharepoint": {
+      "command": "uvx",
+      "args": ["mcp-server-sharepoint"],
+      "env": {
+        "SP_ALLOW_WRITES": "false"   // read-only mode (no checkout/save/share/edit tools)
+        // or
+        // "SP_ALLOW_WRITES": "true"   // enables sp_open, sp_save, sp_release, sp_publish, sp_*_item, sp_share_*, sp_page_update
+      }
+    }
+  }
+}
+```
+
+If you were already setting `SP_ALLOW_WRITES=true` in v0.4.x, no change is needed (that exact value remains the strict form). If you relied on legacy `1`/`yes`/`on`, change to `true`.
+
+**OAuth re-consent:** the first time the server starts under v0.5 with `SP_ALLOW_WRITES=false`, the next login will request narrower scopes (`Files.Read.All` instead of `Files.ReadWrite.All`). Existing cached tokens from v0.4 keep working — Graph accepts the broader-scope token even when the client requests only narrower scopes on the next refresh.
+
 ## [v0.4.1] — 2026-05-11
 
 Bug-fix release. No new features, no breaking changes.

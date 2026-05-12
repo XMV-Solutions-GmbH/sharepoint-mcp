@@ -319,3 +319,84 @@ def _fake_clock(start: float, ticks: list[float]) -> Callable[[], float]:
             return start
 
     return now
+
+
+# ---------------------------------------------------------------------
+# v0.5 strict-consent + scope-split tests (issue #37 outlook pattern propagated)
+# ---------------------------------------------------------------------
+
+
+def test_resolve_scopes_writes_false_returns_readonly_scopes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SP_ALLOW_WRITES=false → consent screen only requests Files.Read.All
+    + Sites.Read.All (no ReadWrite variant)."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", "false")
+    from sharepoint_mcp.auth.flow import resolve_scopes
+
+    scopes = resolve_scopes()
+    assert "Files.Read.All" in scopes
+    assert "Sites.Read.All" in scopes
+    assert "Files.ReadWrite.All" not in scopes
+    assert "Sites.ReadWrite.All" not in scopes
+    assert "User.Read" in scopes
+    assert "offline_access" in scopes
+
+
+def test_resolve_scopes_writes_true_returns_readwrite_scopes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SP_ALLOW_WRITES=true → consent screen requests Files.ReadWrite.All
+    + Sites.ReadWrite.All (replacing the read-only variants)."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", "true")
+    from sharepoint_mcp.auth.flow import resolve_scopes
+
+    scopes = resolve_scopes()
+    assert "Files.ReadWrite.All" in scopes
+    assert "Sites.ReadWrite.All" in scopes
+    assert "Files.Read.All" not in scopes
+    assert "Sites.Read.All" not in scopes
+
+
+def test_resolve_scopes_unset_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SP_ALLOW_WRITES", raising=False)
+    from sharepoint_mcp.auth.flow import (
+        SharepointConsentNotConfiguredError,
+        resolve_scopes,
+    )
+
+    with pytest.raises(SharepointConsentNotConfiguredError):
+        resolve_scopes()
+
+
+def test_resolve_scopes_legacy_truthy_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """v0.4 lenient `yes` / `1` / `on` rejected by v0.5 strict parser."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", "yes")
+    from sharepoint_mcp.auth.flow import (
+        SharepointConsentNotConfiguredError,
+        resolve_scopes,
+    )
+
+    with pytest.raises(SharepointConsentNotConfiguredError):
+        resolve_scopes()
+
+
+def test_validate_consent_config_returns_bool(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SP_ALLOW_WRITES", "true")
+    from sharepoint_mcp.auth.flow import validate_consent_config
+
+    assert validate_consent_config() is True
+
+    monkeypatch.setenv("SP_ALLOW_WRITES", "false")
+    assert validate_consent_config() is False
+
+
+def test_default_scopes_backwards_compat_is_writes_variant() -> None:
+    """v0.4 callers importing DEFAULT_SCOPES at module load still get the
+    full writes scope set so existing scripts that hard-code it continue
+    to work; the strict-validation step catches operators who never
+    set the env var."""
+    from sharepoint_mcp.auth.flow import DEFAULT_SCOPES
+
+    assert "Files.ReadWrite.All" in DEFAULT_SCOPES
+    assert "Sites.ReadWrite.All" in DEFAULT_SCOPES
