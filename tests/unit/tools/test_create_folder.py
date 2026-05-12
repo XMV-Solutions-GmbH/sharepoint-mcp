@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 import respx
@@ -58,11 +59,11 @@ def _mock_site() -> respx.Route:
     )
 
 
-def _folder_created_response(name: str, web_url: str = FOLDER_WEB_URL) -> dict:
+def _folder_created_response(name: str, web_url: str = FOLDER_WEB_URL) -> dict[str, Any]:
     return {"id": "FID", "name": name, "webUrl": web_url, "folder": {}}
 
 
-def _name_already_exists_409() -> dict:
+def _name_already_exists_409() -> dict[str, Any]:
     return {"error": {"code": "nameAlreadyExists", "message": "Name already exists"}}
 
 
