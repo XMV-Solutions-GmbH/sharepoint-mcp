@@ -10,6 +10,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No entries.
 
+## [v0.6.0] — 2026-05-12
+
+Two new write tools that complete the creation surface — previously the
+checkout/checkin lifecycle (`sp_open`/`sp_save`) only worked on *existing* items.
+
+### Added
+
+- **`sp_create_folder(site_url, path)`** — create a folder hierarchy in the
+  site's default document library. `path` is relative to the document library
+  root (e.g. `"2026/Q2/Reports"`). A leading `"Shared Documents/"` prefix is
+  stripped for convenience. Intermediate folders that don't yet exist are
+  created in one call (recursive mkdir semantics). Existing folders are skipped
+  without error (idempotent). Returns `{created, already_existed, web_url}`.
+  Gated by `SP_ALLOW_WRITES=true`. Implements [#86](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/86).
+
+- **`sp_upload_new_file(site_url, path, content)`** — upload a new file from
+  inline base64-encoded content. `path` includes the filename and is relative
+  to the document library root. Content-Type is inferred from the file extension
+  with `application/octet-stream` as fallback. Refuses if the target already
+  exists (raises `FileAlreadyExistsError` directing the user to `sp_open`/`sp_save`
+  instead). Capped at 4 MB decoded; for larger files use `sp_publish`.
+  Returns `{item_id, etag, web_url, size}`. Gated by `SP_ALLOW_WRITES=true`.
+  Implements [#87](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/87).
+
+### Design note
+
+These two tools are complementary to, not in conflict with, the checkout/checkin
+lifecycle. Checkout/checkin (`sp_open`/`sp_save`) prevents concurrent overwrite on
+*existing* items. Creation (`sp_create_folder`, `sp_upload_new_file`, `sp_publish`)
+has no prior version to conflict with — no checkout needed by definition. Typical
+agent workflow for bootstrapping new content: `sp_create_folder` → `sp_upload_new_file`
+(or `sp_publish` for files already on disk). Typical workflow for editing existing
+content: `sp_open` → edit → `sp_save`.
+
+### Engineering
+
+- 560 unit tests (was 529; +31). New test files:
+  `tests/unit/tools/test_create_folder.py` (15 tests) and
+  `tests/unit/tools/test_upload_new_file.py` (16 tests). Coverage: happy path,
+  deep nested creation, partial pre-existence, full idempotency, name collision
+  with file, library-prefix stripping, path normalisation, content-type inference,
+  base64 decode validation, size limit, bearer propagation, all input-validation
+  branches.
+
 ## [v0.5.0] — 2026-05-12
 
 **Breaking change** to the consent-env-var contract — same pattern as `outlook-mcp` v0.4.0. Operators upgrading from v0.4.x must update their `.mcp.json` to set `SP_ALLOW_WRITES` to exactly `"true"` or `"false"`; legacy truthy values (`1`, `yes`, `on`) and unset / empty are now rejected at startup. Plus the OAuth consent screen now reflects the operator's actual decision — with `SP_ALLOW_WRITES=false` the prompt requests only `Files.Read.All` + `Sites.Read.All` instead of the ReadWrite variants.
