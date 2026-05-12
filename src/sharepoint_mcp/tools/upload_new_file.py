@@ -57,7 +57,7 @@ def _normalize_path(path: str) -> str:
     lower = p.lower()
     for prefix in _LIBRARY_PREFIXES:
         if lower.startswith(prefix):
-            p = p[len(prefix):]
+            p = p[len(prefix) :]
             break
     return p.strip("/")
 

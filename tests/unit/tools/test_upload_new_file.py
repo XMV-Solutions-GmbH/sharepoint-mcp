@@ -80,10 +80,12 @@ def test_upload_new_small_file_success(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md").respond(
-        404, json={"error": {"code": "itemNotFound"}},
+        404,
+        json={"error": {"code": "itemNotFound"}},
     )
     respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md:/content").respond(
-        201, json=ITEM_RESPONSE,
+        201,
+        json=ITEM_RESPONSE,
     )
 
     result = upload_new_file(SITE_URL, "report.md", _b64(b"# Hello\n"))
@@ -100,9 +102,9 @@ def test_upload_new_file_strips_library_prefix(store_with_fresh_token: None) -> 
     del store_with_fresh_token
     _mock_site()
     exist = respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md:/content"
-    ).respond(201, json=ITEM_RESPONSE)
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md:/content").respond(
+        201, json=ITEM_RESPONSE
+    )
 
     upload_new_file(SITE_URL, "Shared Documents/report.md", _b64(b"x"))
 
@@ -115,9 +117,9 @@ def test_upload_new_file_nested_path(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2/report.md").respond(404)
-    respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2/report.md:/content"
-    ).respond(201, json={**ITEM_RESPONSE, "size": 7})
+    respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2/report.md:/content").respond(
+        201, json={**ITEM_RESPONSE, "size": 7}
+    )
 
     result = upload_new_file(SITE_URL, "2026/Q2/report.md", _b64(b"content"))
 
@@ -135,7 +137,8 @@ def test_upload_new_file_409_raises_file_already_exists(store_with_fresh_token: 
     _mock_site()
     # Existence check returns 200 → file is there
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.md").respond(
-        200, json={"id": "01EXISTING", "name": "report.md"},
+        200,
+        json={"id": "01EXISTING", "name": "report.md"},
     )
 
     with pytest.raises(FileAlreadyExistsError, match="sp_open"):
@@ -154,9 +157,9 @@ def test_upload_new_file_404_parent_not_found_propagates(store_with_fresh_token:
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing/report.md").respond(404)
     # PUT also 404 — parent folder doesn't exist
-    respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing/report.md:/content"
-    ).respond(404, json={"error": {"code": "itemNotFound"}})
+    respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/missing/report.md:/content").respond(
+        404, json={"error": {"code": "itemNotFound"}}
+    )
 
     import httpx
 
@@ -175,9 +178,9 @@ def test_upload_new_file_body_equals_decoded_bytes(store_with_fresh_token: None)
     _mock_site()
     payload = b"exact-content-bytes-XYZ"
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.bin").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.bin:/content"
-    ).respond(201, json={**ITEM_RESPONSE, "size": len(payload)})
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.bin:/content").respond(
+        201, json={**ITEM_RESPONSE, "size": len(payload)}
+    )
 
     upload_new_file(SITE_URL, "f.bin", _b64(payload))
 
@@ -190,9 +193,9 @@ def test_upload_new_file_empty_content_allowed(store_with_fresh_token: None) -> 
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/placeholder.txt").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/placeholder.txt:/content"
-    ).respond(201, json={**ITEM_RESPONSE, "size": 0})
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/placeholder.txt:/content").respond(
+        201, json={**ITEM_RESPONSE, "size": 0}
+    )
 
     result = upload_new_file(SITE_URL, "placeholder.txt", _b64(b""))
 
@@ -210,9 +213,9 @@ def test_upload_new_file_content_type_docx(store_with_fresh_token: None) -> None
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/doc.docx").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/doc.docx:/content"
-    ).respond(201, json=ITEM_RESPONSE)
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/doc.docx:/content").respond(
+        201, json=ITEM_RESPONSE
+    )
 
     upload_new_file(SITE_URL, "doc.docx", _b64(b"<docx>"))
 
@@ -225,9 +228,9 @@ def test_upload_new_file_content_type_pdf(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.pdf").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.pdf:/content"
-    ).respond(201, json=ITEM_RESPONSE)
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/report.pdf:/content").respond(
+        201, json=ITEM_RESPONSE
+    )
 
     upload_new_file(SITE_URL, "report.pdf", _b64(b"%PDF"))
 
@@ -239,9 +242,9 @@ def test_upload_new_file_unknown_extension_uses_octet_stream(store_with_fresh_to
     del store_with_fresh_token
     _mock_site()
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/data.xyz123").respond(404)
-    put = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/data.xyz123:/content"
-    ).respond(201, json=ITEM_RESPONSE)
+    put = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/data.xyz123:/content").respond(
+        201, json=ITEM_RESPONSE
+    )
 
     upload_new_file(SITE_URL, "data.xyz123", _b64(b"binary"))
 
@@ -258,9 +261,9 @@ def test_upload_new_file_bearer_on_all_calls(store_with_fresh_token: None) -> No
     del store_with_fresh_token
     site_r = _mock_site()
     exist_r = respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.txt").respond(404)
-    put_r = respx.put(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.txt:/content"
-    ).respond(201, json=ITEM_RESPONSE)
+    put_r = respx.put(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/f.txt:/content").respond(
+        201, json=ITEM_RESPONSE
+    )
 
     upload_new_file(SITE_URL, "f.txt", _b64(b"x"))
 

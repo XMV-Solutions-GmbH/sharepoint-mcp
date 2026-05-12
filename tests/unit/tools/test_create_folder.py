@@ -76,7 +76,8 @@ def test_create_folder_single_new_segment(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     post = respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        201, json=_folder_created_response("2026"),
+        201,
+        json=_folder_created_response("2026"),
     )
 
     result = create_folder(SITE_URL, "2026")
@@ -93,14 +94,17 @@ def test_create_folder_deep_path_all_new(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        201, json=_folder_created_response("2026"),
+        201,
+        json=_folder_created_response("2026"),
     )
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
-        201, json=_folder_created_response("Q2"),
+        201,
+        json=_folder_created_response("Q2"),
     )
     q2_web_url = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/2026/Q2/Reports"
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2/children").respond(
-        201, json=_folder_created_response("Reports", web_url=q2_web_url),
+        201,
+        json=_folder_created_response("Reports", web_url=q2_web_url),
     )
 
     result = create_folder(SITE_URL, "2026/Q2/Reports")
@@ -122,12 +126,14 @@ def test_create_folder_partial_path_exists(store_with_fresh_token: None) -> None
     _mock_site()
     # "2026" already exists
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        409, json=_name_already_exists_409(),
+        409,
+        json=_name_already_exists_409(),
     )
     # "2026/Q2" is new
     q2_url = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/2026/Q2"
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
-        201, json=_folder_created_response("Q2", web_url=q2_url),
+        201,
+        json=_folder_created_response("Q2", web_url=q2_url),
     )
 
     result = create_folder(SITE_URL, "2026/Q2")
@@ -143,15 +149,18 @@ def test_create_folder_all_segments_exist(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        409, json=_name_already_exists_409(),
+        409,
+        json=_name_already_exists_409(),
     )
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/children").respond(
-        409, json=_name_already_exists_409(),
+        409,
+        json=_name_already_exists_409(),
     )
     # Extra GET to fetch web_url for deepest folder
     q2_url = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/2026/Q2"
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root:/2026/Q2").respond(
-        200, json={"id": "FID", "webUrl": q2_url},
+        200,
+        json={"id": "FID", "webUrl": q2_url},
     )
 
     result = create_folder(SITE_URL, "2026/Q2")
@@ -172,7 +181,8 @@ def test_create_folder_name_collision_with_file_raises(store_with_fresh_token: N
     del store_with_fresh_token
     _mock_site()
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        409, json={"error": {"code": "someOtherConflict", "message": "not a folder"}},
+        409,
+        json={"error": {"code": "someOtherConflict", "message": "not a folder"}},
     )
 
     import httpx
@@ -192,7 +202,8 @@ def test_create_folder_strips_shared_documents_prefix(store_with_fresh_token: No
     del store_with_fresh_token
     _mock_site()
     post = respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        201, json=_folder_created_response("2026"),
+        201,
+        json=_folder_created_response("2026"),
     )
 
     result = create_folder(SITE_URL, "Shared Documents/2026")
@@ -206,7 +217,8 @@ def test_create_folder_strips_leading_trailing_slashes(store_with_fresh_token: N
     del store_with_fresh_token
     _mock_site()
     post = respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        201, json=_folder_created_response("2026"),
+        201,
+        json=_folder_created_response("2026"),
     )
 
     result = create_folder(SITE_URL, "/2026/")
@@ -221,7 +233,8 @@ def test_create_folder_returns_web_url_from_creation_response(store_with_fresh_t
     _mock_site()
     expected_url = "https://contoso.sharepoint.com/sites/foo/Shared%20Documents/reports"
     respx.post(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root/children").respond(
-        201, json=_folder_created_response("reports", web_url=expected_url),
+        201,
+        json=_folder_created_response("reports", web_url=expected_url),
     )
 
     result = create_folder(SITE_URL, "reports")
