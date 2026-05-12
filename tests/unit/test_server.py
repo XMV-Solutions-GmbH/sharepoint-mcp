@@ -18,6 +18,7 @@ import asyncio
 import pytest
 from mcp.server.fastmcp import FastMCP
 
+from sharepoint_mcp.auth.flow import SharepointConsentNotConfiguredError
 from sharepoint_mcp.server import (
     register_read_tools,
     register_write_tools,
@@ -31,33 +32,41 @@ def _list_tool_names(server: FastMCP) -> set[str]:
 
 
 # ---------------------------------------------------------------------
-# writes_enabled — env-var parsing
+# writes_enabled — strict env-var parsing (v0.5)
 # ---------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", "YES", "on", "ON"])
-def test_writes_enabled_truthy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+@pytest.mark.parametrize("value", ["true", "TRUE", " true ", "True"])
+def test_writes_enabled_true_accepts_case_and_whitespace(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
     monkeypatch.setenv("SP_ALLOW_WRITES", value)
     assert writes_enabled() is True
 
 
-@pytest.mark.parametrize("value", ["", "false", "0", "no", "off", "garbage", " true "])
-def test_writes_enabled_falsy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
-    """Whitespace-padded truthy strings are NOT treated as truthy — env vars
-    should be set cleanly. Trim ambiguity intentionally (cf. ' true ').
-    """
-    if value == " true ":
-        # Special: we do strip + lower, so this should actually be truthy.
-        monkeypatch.setenv("SP_ALLOW_WRITES", value)
-        assert writes_enabled() is True
-    else:
-        monkeypatch.setenv("SP_ALLOW_WRITES", value)
-        assert writes_enabled() is False
-
-
-def test_writes_enabled_unset(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SP_ALLOW_WRITES", raising=False)
+@pytest.mark.parametrize("value", ["false", "FALSE", " false "])
+def test_writes_enabled_false_accepts_case_and_whitespace(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("SP_ALLOW_WRITES", value)
     assert writes_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["1", "yes", "on", "garbage", "", "0", "no", "off"])
+def test_writes_enabled_strict_rejects_legacy_and_other_values(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """v0.5 breaking change: only exactly 'true' / 'false' accepted.
+    Legacy v0.4 truthy values (1/yes/on) and any other string raise."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", value)
+    with pytest.raises(SharepointConsentNotConfiguredError, match="SP_ALLOW_WRITES"):
+        writes_enabled()
+
+
+def test_writes_enabled_unset_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SP_ALLOW_WRITES", raising=False)
+    with pytest.raises(SharepointConsentNotConfiguredError, match="not set"):
+        writes_enabled()
 
 
 # ---------------------------------------------------------------------
@@ -136,19 +145,39 @@ def test_write_tool_has_destructive_annotations_set() -> None:
 # ---------------------------------------------------------------------
 
 
-def test_module_level_server_omits_writes_when_env_unset(
+def test_module_level_server_omits_writes_in_explicit_readonly_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A fresh server constructed without the env var has no write tools."""
-    monkeypatch.delenv("SP_ALLOW_WRITES", raising=False)
-    # _build_server is called at import; we simulate by calling it again
-    # (pure function, no side effects beyond what we're testing).
+    """Explicit SP_ALLOW_WRITES=false → no write tools, read tools still there."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", "false")
     from sharepoint_mcp.server import _build_server
 
     server = _build_server()
     names = _list_tool_names(server)
     assert "sp_open" not in names
     assert "sp_search" in names
+
+
+def test_module_level_server_refuses_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_build_server raises SharepointConsentNotConfiguredError when SP_ALLOW_WRITES unset."""
+    monkeypatch.delenv("SP_ALLOW_WRITES", raising=False)
+    from sharepoint_mcp.server import _build_server
+
+    with pytest.raises(SharepointConsentNotConfiguredError, match="not set"):
+        _build_server()
+
+
+def test_module_level_server_refuses_on_legacy_truthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """v0.4 legacy `SP_ALLOW_WRITES=yes` is rejected — must be explicit true/false."""
+    monkeypatch.setenv("SP_ALLOW_WRITES", "yes")
+    from sharepoint_mcp.server import _build_server
+
+    with pytest.raises(SharepointConsentNotConfiguredError, match="SP_ALLOW_WRITES"):
+        _build_server()
 
 
 def test_module_level_server_includes_writes_when_env_set(

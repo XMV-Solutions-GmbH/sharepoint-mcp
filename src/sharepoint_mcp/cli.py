@@ -68,9 +68,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse CLI arguments and dispatch to the right subcommand.
 
     Returns the process exit code.
+
+    For both `login` and the default server-start path, validates the
+    consent env var (`SP_ALLOW_WRITES`) up-front — if unset or has a
+    non-`true`/`false` value, prints the help text and exits 2. The
+    CLI `logout` subcommand skips this check because clearing a
+    cached token doesn't depend on the operator's write decision.
     """
+    import sys
+
+    from sharepoint_mcp.auth.flow import (
+        SharepointConsentNotConfiguredError,
+        validate_consent_config,
+    )
+
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.command != "logout":
+        try:
+            validate_consent_config()
+        except SharepointConsentNotConfiguredError as err:
+            sys.stderr.write(str(err) + "\n")
+            return 2
 
     if args.command == "login":
         from sharepoint_mcp.auth import interactive_login

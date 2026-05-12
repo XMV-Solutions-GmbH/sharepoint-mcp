@@ -17,10 +17,20 @@ Layer-specific shared fixtures live in `tests/<layer>/conftest.py`.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
+
+# v0.5: the server / CLI refuse to start without explicit
+# SP_ALLOW_WRITES=true|false. Set a safe read-only default at
+# module-import time (before pytest's autouse fixtures fire, before
+# any test imports `sharepoint_mcp.server` which validates at module
+# top level). Tests that need to vary the consent decision use
+# `monkeypatch.setenv` to override.
+os.environ.setdefault("SP_ALLOW_WRITES", "false")
+
 
 _LAYER_DIRS = ("unit", "integration", "harness")
 
