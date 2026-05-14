@@ -60,9 +60,7 @@ NEW_ITEM_WEB_URL = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/Archive/c
 
 
 def _mock_site() -> respx.Route:
-    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(
-        json={"id": SITE_ID}
-    )
+    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(json={"id": SITE_ID})
 
 
 def _mock_resolve_source(path: str) -> respx.Route:
@@ -84,9 +82,9 @@ def _mock_resolve_dest_folder(folder_path: str) -> respx.Route:
 
 
 def _mock_copy_202() -> respx.Route:
-    return respx.post(
-        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{SRC_ITEM_ID}/copy"
-    ).respond(202, headers={"Location": OPERATION_URL})
+    return respx.post(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{SRC_ITEM_ID}/copy").respond(
+        202, headers={"Location": OPERATION_URL}
+    )
 
 
 def _mock_operation_completed() -> respx.Route:
@@ -129,6 +127,7 @@ def test_copy_file_post_body_contains_parent_and_name(store_with_fresh_token: No
     copy_file(SITE_URL, "src.txt", "dest-folder/copy.txt")
 
     import json
+
     body = json.loads(route.calls.last.request.content)
     assert body["parentReference"]["id"] == DEST_FOLDER_ITEM_ID
     assert body["name"] == "copy.txt"
@@ -286,13 +285,9 @@ def test_copy_file_rejects_empty_destination() -> None:
 
 @respx.mock
 def test_poll_returns_resource_link_on_completed() -> None:
-    respx.get(OPERATION_URL).respond(
-        json={"status": "completed", "resourceLink": NEW_ITEM_WEB_URL}
-    )
+    respx.get(OPERATION_URL).respond(json={"status": "completed", "resourceLink": NEW_ITEM_WEB_URL})
     with httpx.Client() as client:
-        url = _poll_copy_operation(
-            client, OPERATION_URL, headers={}, timeout=5
-        )
+        url = _poll_copy_operation(client, OPERATION_URL, headers={}, timeout=5)
     assert url == NEW_ITEM_WEB_URL
 
 

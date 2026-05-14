@@ -869,9 +869,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "Paths are drive-relative, e.g. 'Archive/2026/report.md'."
         ),
     )
-    def sp_move_file(
-        site_url: str, source_path: str, destination_path: str
-    ) -> dict[str, Any]:
+    def sp_move_file(site_url: str, source_path: str, destination_path: str) -> dict[str, Any]:
         return _do_move_file(site_url, source_path, destination_path, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -893,9 +891,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "Paths are drive-relative, e.g. 'Projects/ACME/contract.docx'."
         ),
     )
-    def sp_copy_file(
-        site_url: str, source_path: str, destination_path: str
-    ) -> dict[str, Any]:
+    def sp_copy_file(site_url: str, source_path: str, destination_path: str) -> dict[str, Any]:
         return _do_copy_file(site_url, source_path, destination_path, profile=_get_profile())
 
     @mcp_instance.tool(

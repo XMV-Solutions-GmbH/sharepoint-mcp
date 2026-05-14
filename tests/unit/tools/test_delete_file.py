@@ -58,9 +58,7 @@ FILE_PATH = "Documents/report.md"
 
 
 def _mock_site() -> respx.Route:
-    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(
-        json={"id": SITE_ID}
-    )
+    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(json={"id": SITE_ID})
 
 
 def _mock_resolve_item(path: str = FILE_PATH) -> respx.Route:

@@ -59,9 +59,7 @@ WEB_URL = f"https://{SITE_HOST}{SITE_PATH}/Shared%20Documents/Archive/report.md"
 
 
 def _mock_site() -> respx.Route:
-    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(
-        json={"id": SITE_ID}
-    )
+    return respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:{SITE_PATH}").respond(json={"id": SITE_ID})
 
 
 def _mock_resolve_source(path: str) -> respx.Route:
@@ -120,6 +118,7 @@ def test_move_file_patch_body_contains_parent_and_name(store_with_fresh_token: N
     move_file(SITE_URL, "old/file.txt", "new-folder/file.txt")
 
     import json
+
     body = json.loads(route.calls.last.request.content)
     assert body["parentReference"]["id"] == DEST_FOLDER_ITEM_ID
     assert body["name"] == "file.txt"
@@ -135,13 +134,16 @@ def test_move_file_rename_in_place(store_with_fresh_token: None) -> None:
     respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/drive/root").respond(
         json={"id": "root-item-id", "parentReference": {"driveId": DRIVE_ID}}
     )
-    route = _mock_patch(web_url="https://contoso.sharepoint.com/sites/foo/Shared%20Documents/new-name.txt")
+    route = _mock_patch(
+        web_url="https://contoso.sharepoint.com/sites/foo/Shared%20Documents/new-name.txt"
+    )
 
     result = move_file(SITE_URL, "old-name.txt", "new-name.txt")
 
     assert result["moved"] is True
     assert result["destination"] == "new-name.txt"
     import json
+
     body = json.loads(route.calls.last.request.content)
     assert body["name"] == "new-name.txt"
 
@@ -157,6 +159,7 @@ def test_move_file_combined_move_and_rename(store_with_fresh_token: None) -> Non
     move_file(SITE_URL, "Work/draft.md", "Archive/final.md")
 
     import json
+
     body = json.loads(route.calls.last.request.content)
     assert body["name"] == "final.md"
     assert body["parentReference"]["id"] == DEST_FOLDER_ITEM_ID

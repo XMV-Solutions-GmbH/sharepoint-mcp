@@ -200,9 +200,7 @@ def _poll_copy_operation(
             error = data.get("error") or {}
             code = error.get("code") or "unknown"
             message = error.get("message") or "no details"
-            raise RuntimeError(
-                f"sp_copy_file: Graph copy operation failed — {code}: {message}"
-            )
+            raise RuntimeError(f"sp_copy_file: Graph copy operation failed — {code}: {message}")
 
         time.sleep(_POLL_INTERVAL_SECONDS)
 
