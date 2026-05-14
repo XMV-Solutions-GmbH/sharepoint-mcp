@@ -9,6 +9,7 @@ Graph API contract that unit tests with mocks cannot catch.
 
 from __future__ import annotations
 
+import base64
 import time
 from collections.abc import Iterator
 
@@ -21,7 +22,6 @@ from sharepoint_mcp.tools.delete_file import delete_file
 from sharepoint_mcp.tools.move_file import move_file
 from sharepoint_mcp.tools.trash import trash_list
 from sharepoint_mcp.tools.upload_new_file import upload_new_file
-import base64
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"

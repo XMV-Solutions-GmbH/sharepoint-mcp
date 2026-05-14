@@ -39,7 +39,9 @@ from sharepoint_mcp.auth.login_tools import login_status as _do_login_status
 from sharepoint_mcp.tools.bulk import open_many as _do_open_many
 from sharepoint_mcp.tools.bulk import save_many as _do_save_many
 from sharepoint_mcp.tools.changes import changes as _do_changes
+from sharepoint_mcp.tools.copy_file import copy_file as _do_copy_file
 from sharepoint_mcp.tools.create_folder import create_folder as _do_create_folder
+from sharepoint_mcp.tools.delete_file import delete_file as _do_delete_file
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
@@ -50,6 +52,7 @@ from sharepoint_mcp.tools.lists import list_columns as _do_list_columns
 from sharepoint_mcp.tools.lists import list_items as _do_list_items
 from sharepoint_mcp.tools.lists import lists as _do_lists
 from sharepoint_mcp.tools.lists import update_item as _do_update_item
+from sharepoint_mcp.tools.move_file import move_file as _do_move_file
 from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.pages import page_read as _do_page_read
 from sharepoint_mcp.tools.pages import page_update as _do_page_update
@@ -69,9 +72,6 @@ from sharepoint_mcp.tools.sites import sites as _do_sites
 from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
-from sharepoint_mcp.tools.copy_file import copy_file as _do_copy_file
-from sharepoint_mcp.tools.delete_file import delete_file as _do_delete_file
-from sharepoint_mcp.tools.move_file import move_file as _do_move_file
 from sharepoint_mcp.tools.upload_new_file import upload_new_file as _do_upload_new_file
 
 PROFILE_ENV = "SP_PROFILE"
