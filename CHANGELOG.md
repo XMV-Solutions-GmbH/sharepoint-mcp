@@ -8,7 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No entries.
+### Added
+
+- **`sp_delete_file(site_url, path)`** — soft-delete a file or folder to the
+  site recycle bin via `DELETE /drives/{id}/items/{id}` (Graph returns 204).
+  The item is recoverable from the SharePoint recycle bin. Returns
+  `{deleted: true, path}`. Gated by `SP_ALLOW_WRITES=true`. Implements
+  [#92](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/92).
+
+- **`sp_move_file(site_url, source_path, destination_path)`** — move or rename
+  a file/folder via `PATCH /drives/{id}/items/{id}` with a new
+  `parentReference` and/or `name`. The destination is the full path after the
+  move (last segment = new name; preceding segments = existing destination
+  folder). Supports cross-folder move, in-place rename, and combined
+  move-and-rename in a single call. Returns `{moved: true, source, destination,
+  web_url}`. Gated by `SP_ALLOW_WRITES=true`. Implements
+  [#95](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/95).
+
+- **`sp_copy_file(site_url, source_path, destination_path)`** — copy a file to
+  a new path via `POST /drives/{id}/items/{id}/copy`. The Graph copy endpoint
+  is asynchronous (returns 202 Accepted + `Location` header); this tool polls
+  the operation-status URL until the copy completes or a configurable timeout
+  (default 60 s) elapses. Also handles synchronous 200/201 responses (test
+  tenants) and 303 CDN-redirect responses (both on the initial POST and during
+  polling). Returns `{copied: true, source, destination, web_url}`. Gated by
+  `SP_ALLOW_WRITES=true`. Implements
+  [#96](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/96).
 
 ## [v0.6.1] — 2026-05-12
 
