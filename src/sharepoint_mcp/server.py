@@ -69,6 +69,9 @@ from sharepoint_mcp.tools.sites import sites as _do_sites
 from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
+from sharepoint_mcp.tools.copy_file import copy_file as _do_copy_file
+from sharepoint_mcp.tools.delete_file import delete_file as _do_delete_file
+from sharepoint_mcp.tools.move_file import move_file as _do_move_file
 from sharepoint_mcp.tools.upload_new_file import upload_new_file as _do_upload_new_file
 
 PROFILE_ENV = "SP_PROFILE"
@@ -827,6 +830,73 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_delete_item(list_url: str, item_id: str) -> None:
         _do_delete_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Delete SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Delete a file or folder in a SharePoint document library "
+            "(drive item). SharePoint sends it to the site recycle bin — "
+            "recoverable for ~93 days via sp_trash_list. "
+            "Does NOT hard-delete. "
+            "site_url: https://<host>/sites/<name>. "
+            "path: drive-relative path, e.g. '2026/Q2/report.md'."
+        ),
+    )
+    def sp_delete_file(site_url: str, path: str) -> dict[str, Any]:
+        return _do_delete_file(site_url, path, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Move / Rename SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Move or rename a file or folder in a SharePoint document library. "
+            "destination_path is the full path of the item after the move "
+            "(not the destination folder). Last segment = new name; preceding "
+            "segments = existing destination folder. "
+            "Combine move + rename in one call by changing both folder and name. "
+            "site_url: https://<host>/sites/<name>. "
+            "Paths are drive-relative, e.g. 'Archive/2026/report.md'."
+        ),
+    )
+    def sp_move_file(
+        site_url: str, source_path: str, destination_path: str
+    ) -> dict[str, Any]:
+        return _do_move_file(site_url, source_path, destination_path, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Copy SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Copy a file in a SharePoint document library to a new path. "
+            "destination_path is the full path of the copy after creation "
+            "(not the destination folder). Last segment = name of the copy; "
+            "preceding segments = existing destination folder. "
+            "The Graph copy operation is asynchronous; this tool polls until "
+            "completed (up to 60 s). "
+            "site_url: https://<host>/sites/<name>. "
+            "Paths are drive-relative, e.g. 'Projects/ACME/contract.docx'."
+        ),
+    )
+    def sp_copy_file(
+        site_url: str, source_path: str, destination_path: str
+    ) -> dict[str, Any]:
+        return _do_copy_file(site_url, source_path, destination_path, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
