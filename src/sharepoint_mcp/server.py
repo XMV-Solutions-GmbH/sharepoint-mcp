@@ -39,7 +39,9 @@ from sharepoint_mcp.auth.login_tools import login_status as _do_login_status
 from sharepoint_mcp.tools.bulk import open_many as _do_open_many
 from sharepoint_mcp.tools.bulk import save_many as _do_save_many
 from sharepoint_mcp.tools.changes import changes as _do_changes
+from sharepoint_mcp.tools.copy_file import copy_file as _do_copy_file
 from sharepoint_mcp.tools.create_folder import create_folder as _do_create_folder
+from sharepoint_mcp.tools.delete_file import delete_file as _do_delete_file
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
@@ -50,6 +52,7 @@ from sharepoint_mcp.tools.lists import list_columns as _do_list_columns
 from sharepoint_mcp.tools.lists import list_items as _do_list_items
 from sharepoint_mcp.tools.lists import lists as _do_lists
 from sharepoint_mcp.tools.lists import update_item as _do_update_item
+from sharepoint_mcp.tools.move_file import move_file as _do_move_file
 from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.pages import page_read as _do_page_read
 from sharepoint_mcp.tools.pages import page_update as _do_page_update
@@ -827,6 +830,69 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_delete_item(list_url: str, item_id: str) -> None:
         _do_delete_item(list_url, item_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Delete SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Delete a file or folder in a SharePoint document library "
+            "(drive item). SharePoint sends it to the site recycle bin — "
+            "recoverable for ~93 days via sp_trash_list. "
+            "Does NOT hard-delete. "
+            "site_url: https://<host>/sites/<name>. "
+            "path: drive-relative path, e.g. '2026/Q2/report.md'."
+        ),
+    )
+    def sp_delete_file(site_url: str, path: str) -> dict[str, Any]:
+        return _do_delete_file(site_url, path, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Move / Rename SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Move or rename a file or folder in a SharePoint document library. "
+            "destination_path is the full path of the item after the move "
+            "(not the destination folder). Last segment = new name; preceding "
+            "segments = existing destination folder. "
+            "Combine move + rename in one call by changing both folder and name. "
+            "site_url: https://<host>/sites/<name>. "
+            "Paths are drive-relative, e.g. 'Archive/2026/report.md'."
+        ),
+    )
+    def sp_move_file(site_url: str, source_path: str, destination_path: str) -> dict[str, Any]:
+        return _do_move_file(site_url, source_path, destination_path, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Copy SharePoint Drive File",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Copy a file in a SharePoint document library to a new path. "
+            "destination_path is the full path of the copy after creation "
+            "(not the destination folder). Last segment = name of the copy; "
+            "preceding segments = existing destination folder. "
+            "The Graph copy operation is asynchronous; this tool polls until "
+            "completed (up to 60 s). "
+            "site_url: https://<host>/sites/<name>. "
+            "Paths are drive-relative, e.g. 'Projects/ACME/contract.docx'."
+        ),
+    )
+    def sp_copy_file(site_url: str, source_path: str, destination_path: str) -> dict[str, Any]:
+        return _do_copy_file(site_url, source_path, destination_path, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
