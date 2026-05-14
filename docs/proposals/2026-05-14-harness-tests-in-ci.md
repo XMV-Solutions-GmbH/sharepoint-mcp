@@ -40,15 +40,18 @@ This was **not** chosen because it decouples the harness result from the specifi
 ## Consequences
 
 **Positive:**
+
 - Every PR is verified against the real Graph API before merge. The 303-CDN-redirect bug (PR #97) was caught by the CI harness job, not by unit tests.
 - Contributors without local harness credentials still get their PRs verified end-to-end.
 
 **Negative:**
+
 - CI run time is longer (~2 min for the harness job vs. ~30 s for unit tests).
 - PRs can fail due to Graph API availability, not project-code bugs. When this happens, the failure is transient and a re-run resolves it.
 - The refresh token stored in GitHub Actions secrets must be rotated when it expires. Current token lifetime: ~90 days from last use.
 
 **Neutral but worth knowing:**
+
 - The harness account (`sharepoint-mcp-harness@xmvsolutions.onmicrosoft.com` or equivalent) is scoped exclusively to the sandbox site. A compromised CI secret gives access only to test data, not production.
 - The harness job is skipped on forks (GitHub does not expose repository secrets to fork PRs). External contributors should note that their PRs will not have a harness result; the maintainer re-runs harness after review.
 
