@@ -13,6 +13,7 @@ import base64
 import time
 from collections.abc import Iterator
 
+import httpx
 import pytest
 
 from sharepoint_mcp.auth import AuthRequiredError, get_token
@@ -146,3 +147,50 @@ def test_copy_file_creates_independent_copy(harness_root: str) -> None:
     assert result["source"] == src_path
     assert result["destination"] == dst_path
     assert result["web_url"]
+
+
+# ------------------------------------------------------------------
+# Error paths — verifying real Graph API behaviour
+#
+# These tests do NOT create any folders or files; they verify that
+# the real Microsoft Graph API returns 404 for non-existent resources.
+# Mocks cannot catch this: a mock returns whatever shape the author
+# wrote in; only the real API confirms the actual error contract.
+# ------------------------------------------------------------------
+
+
+def test_delete_nonexistent_file_propagates_404() -> None:
+    """Graph returns 404 when deleting a path that does not exist."""
+    _skip_if_no_harness()
+    nonexistent = f"harness-nonexistent-{int(time.time())}/ghost.txt"
+
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        delete_file(HARNESS_SITE_URL, nonexistent, profile=HARNESS_PROFILE)
+
+    assert exc_info.value.response.status_code == 404
+
+
+def test_move_nonexistent_source_propagates_404() -> None:
+    """Graph returns 404 when the move source path does not exist."""
+    _skip_if_no_harness()
+    ts = int(time.time())
+    nonexistent = f"harness-nonexistent-{ts}/ghost.txt"
+    dest = f"harness-nonexistent-{ts}/moved.txt"
+
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        move_file(HARNESS_SITE_URL, nonexistent, dest, profile=HARNESS_PROFILE)
+
+    assert exc_info.value.response.status_code == 404
+
+
+def test_copy_nonexistent_source_propagates_404() -> None:
+    """Graph returns 404 when the copy source path does not exist."""
+    _skip_if_no_harness()
+    ts = int(time.time())
+    nonexistent = f"harness-nonexistent-{ts}/ghost.txt"
+    dest = f"harness-nonexistent-{ts}/copy.txt"
+
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        copy_file(HARNESS_SITE_URL, nonexistent, dest, profile=HARNESS_PROFILE)
+
+    assert exc_info.value.response.status_code == 404
