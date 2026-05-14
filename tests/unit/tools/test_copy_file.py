@@ -208,7 +208,9 @@ def test_copy_file_raises_on_failed_operation(store_with_fresh_token: None) -> N
 
 
 @respx.mock
-def test_copy_file_raises_timeout(store_with_fresh_token: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy_file_raises_timeout(
+    store_with_fresh_token: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """If operation never completes within timeout, raises TimeoutError."""
     del store_with_fresh_token
     _mock_site()

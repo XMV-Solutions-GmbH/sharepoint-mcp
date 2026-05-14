@@ -117,7 +117,8 @@ def move_file(
             root_resp.raise_for_status()
             root = root_resp.json()
             dest_folder_id = str(root["id"])
-            dest_folder_drive_id = str(root["parentReference"]["driveId"]) if root.get("parentReference") else drive_id
+            parent_ref = root.get("parentReference") or {}
+            dest_folder_drive_id = str(parent_ref["driveId"]) if parent_ref else drive_id
 
         patch_body: dict[str, Any] = {
             "parentReference": {
