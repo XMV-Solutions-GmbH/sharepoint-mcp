@@ -183,6 +183,23 @@ def test_copy_file_handles_synchronous_200(store_with_fresh_token: None) -> None
     assert result["web_url"] == NEW_ITEM_WEB_URL
 
 
+@respx.mock
+def test_copy_file_handles_303_cdn_redirect(store_with_fresh_token: None) -> None:
+    """Graph returns 303 See Other when copy completes via CDN redirect pattern."""
+    del store_with_fresh_token
+    _mock_site()
+    _mock_resolve_source("src.txt")
+    _mock_resolve_dest_folder("dst")
+    respx.post(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{SRC_ITEM_ID}/copy").respond(
+        303, headers={"Location": NEW_ITEM_WEB_URL}
+    )
+
+    result = copy_file(SITE_URL, "src.txt", "dst/src.txt")
+
+    assert result["copied"] is True
+    assert result["web_url"] == NEW_ITEM_WEB_URL
+
+
 # ------------------------------------------------------------------
 # Error paths
 # ------------------------------------------------------------------
@@ -219,7 +236,7 @@ def test_copy_file_raises_timeout(
     respx.get(OPERATION_URL).respond(json={"status": "inProgress"})
 
     # Patch sleep to avoid actual waiting; fake time by overriding monotonic.
-    import sharepoint_mcp.tools.copy_file as copy_mod
+    import time as time_module
 
     call_count = 0
 
@@ -229,8 +246,8 @@ def test_copy_file_raises_timeout(
         # First call (deadline set) returns 0, subsequent calls advance past deadline.
         return 0.0 if call_count == 1 else 100.0
 
-    monkeypatch.setattr(copy_mod.time, "monotonic", fake_monotonic)
-    monkeypatch.setattr(copy_mod.time, "sleep", lambda _: None)
+    monkeypatch.setattr(time_module, "monotonic", fake_monotonic)
+    monkeypatch.setattr(time_module, "sleep", lambda _: None)
 
     with pytest.raises(TimeoutError, match="did not complete"):
         copy_file(SITE_URL, "src.txt", "dst/src.txt", timeout=60)

@@ -143,11 +143,17 @@ def copy_file(
                 "name": new_name,
             },
         )
-        copy_resp.raise_for_status()
+        # Handle all expected Graph copy-endpoint response codes before
+        # calling raise_for_status, because httpx raises HTTPStatusError on
+        # 3xx responses when follow_redirects=False.
+        #
+        # 200/201 — synchronous completion with item body
+        # 202     — async copy; Location header points to operation-status URL
+        # 303     — CDN redirect; Location header is the new item's URL directly
+        # 4xx/5xx — error, raise
+        status = copy_resp.status_code
 
-        # Graph may return 202 with a Location header, or occasionally 200/201
-        # for very small files (e.g. in test environments).
-        if copy_resp.status_code in (200, 201):
+        if status in (200, 201):
             item = copy_resp.json()
             return {
                 "copied": True,
@@ -155,6 +161,17 @@ def copy_file(
                 "destination": dst,
                 "web_url": str(item.get("webUrl") or ""),
             }
+
+        if status == 303:
+            return {
+                "copied": True,
+                "source": src,
+                "destination": dst,
+                "web_url": copy_resp.headers.get("Location", ""),
+            }
+
+        if status != 202:
+            copy_resp.raise_for_status()
 
         operation_url = copy_resp.headers.get("Location", "")
         if not operation_url:
