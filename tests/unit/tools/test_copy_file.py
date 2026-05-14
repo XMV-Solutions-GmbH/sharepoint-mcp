@@ -319,3 +319,12 @@ def test_poll_raises_runtime_error_on_failed() -> None:
     with httpx.Client() as client:
         with pytest.raises(RuntimeError, match="quota exceeded"):
             _poll_copy_operation(client, OPERATION_URL, headers={}, timeout=5)
+
+
+@respx.mock
+def test_poll_handles_303_redirect() -> None:
+    """Graph may respond to the operation-status poll with 303 See Other."""
+    respx.get(OPERATION_URL).respond(303, headers={"Location": NEW_ITEM_WEB_URL})
+    with httpx.Client() as client:
+        url = _poll_copy_operation(client, OPERATION_URL, headers={}, timeout=5)
+    assert url == NEW_ITEM_WEB_URL

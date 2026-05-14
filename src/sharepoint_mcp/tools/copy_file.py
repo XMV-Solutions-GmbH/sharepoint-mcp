@@ -205,6 +205,12 @@ def _poll_copy_operation(
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         resp = client.get(operation_url, headers=headers)
+
+        # Graph sometimes responds to the operation-status poll with 303 See Other
+        # (CDN redirect pattern) — treat it as synchronous completion.
+        if resp.status_code == 303:
+            return str(resp.headers.get("Location", ""))
+
         resp.raise_for_status()
         data = resp.json()
         status = str(data.get("status") or "")
