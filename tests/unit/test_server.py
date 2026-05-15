@@ -80,13 +80,12 @@ def test_register_read_tools_adds_all_read_tools() -> None:
     names = _list_tool_names(server)
     assert names == {
         "sp_search",
-        "sp_list",
+        "sp_list_folder",
         "sp_read",
         "sp_status",
         "sp_history",
         "sp_get_version",
         "sp_sites",
-        "sp_subsites",
         "sp_followed_sites",
         "sp_drives",
         "sp_trash_list",

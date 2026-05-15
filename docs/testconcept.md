@@ -36,7 +36,7 @@ The `tests/conftest.py` auto-marks tests by their parent directory so `pytest -m
 
 **Why a real user, not a service principal**: v0.1 only supports delegated user auth (no client-credentials flow). A leaked harness refresh token would let an attacker act as `d.koller@xmv.de` against the harness site only — the blast radius is bounded by the user's permissions.
 
-**Seed data**: the harness Documents library contains synthetic test files (`README.md`, `policies/iso27001-control-A.5.1.md`, `drafts/onboarding-draft.md`) sufficient for sp_search / sp_list / sp_read / sp_open / sp_save / sp_release flows. Tests that mutate state clean up after themselves via the `_cleanup.py` fixture.
+**Seed data**: the harness Documents library contains synthetic test files (`README.md`, `policies/iso27001-control-A.5.1.md`, `drafts/onboarding-draft.md`) sufficient for sp_search / sp_list_folder / sp_read / sp_open / sp_save / sp_release flows. Tests that mutate state clean up after themselves via the `_cleanup.py` fixture.
 
 ---
 

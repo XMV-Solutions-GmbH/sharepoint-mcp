@@ -8,7 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- **`sp_list` renamed to `sp_list_folder`**. The previous name was one
+  letter away from `sp_lists` (SharePoint Lists CRUD) and agents under
+  context pressure routinely confused the two — they have entirely
+  different semantics (`sp_list_folder` lists drive items in a
+  document-library folder; `sp_lists` lists SharePoint List collections
+  like Issue Trackers, Tasks, Custom Lists). Migration: rename the tool
+  call. Behaviour, signature, and return shape are unchanged.
+
 ### Removed
+
+- **`sp_page_update`** — removed. Microsoft Graph's modern Pages API exposes
+  reads of the full canvas layout but the metadata-only write surface
+  (`title` / `description` / `thumbnail`) was a half-tool — agents reached
+  for it expecting full edits and routinely tried to use it to change page
+  content, which it can't do. Canvas-layout writes need a clearer agent UX
+  before they're safe; until then, modern Pages have to be edited via the
+  SharePoint web UI. `sp_pages_list` and `sp_page_read` remain.
+
+- **`sp_subsites`** — removed. Sub-sites are a legacy SharePoint construct;
+  modern tenants use flat site architectures with Hub Sites. The tool added
+  a third navigation entry point on top of `sp_sites` and `sp_followed_sites`
+  for a rarely-needed traversal pattern. Migration: list all visible sites
+  with `sp_sites(query)` (which already includes sub-sites in its results)
+  or read site metadata directly if you need the parent/child relationship.
 
 - **`sp_upload_new_file`** — removed entirely (closes
   [#99](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/99)).

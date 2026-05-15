@@ -19,7 +19,7 @@ Graph API:
 The ``resourceLink`` in the completed status response is the webUrl of the new
 item. If the operation doesn't complete within the timeout, we raise
 ``TimeoutError`` — the copy may still complete on the server side, but the
-caller can verify with sp_list.
+caller can verify with sp_list_folder.
 
 Implements GitHub issue #96.
 """
@@ -229,5 +229,5 @@ def _poll_copy_operation(
 
     raise TimeoutError(
         f"sp_copy_file: copy operation did not complete within {timeout} seconds. "
-        "The copy may still be in progress on the server — check sp_list to verify."
+        "The copy may still be in progress on the server — check sp_list_folder to verify."
     )

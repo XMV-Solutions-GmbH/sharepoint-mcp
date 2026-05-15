@@ -24,7 +24,7 @@ Concretely, the agent gets these tools:
 
 | Tool | What the agent does | What ends up in SharePoint |
 |---|---|---|
-| `sp_search`, `sp_list`, `sp_read` | finds and reads files | nothing changes |
+| `sp_search`, `sp_list_folder`, `sp_read` | finds and reads files | nothing changes |
 | `sp_open` | acquires a checkout lock + downloads | "checked out by *you*" appears for everyone else |
 | `sp_save` | uploads + checks in with a comment | a real new version with a real comment in the audit log |
 | `sp_release` | discards a checkout | lock released, no version created |
@@ -81,7 +81,7 @@ In your project's `.mcp.json`:
 }
 ```
 
-Restart Claude Code. The agent now has `sp_search`, `sp_list`, `sp_read`, `sp_status` available — **read-only by default**.
+Restart Claude Code. The agent now has `sp_search`, `sp_list_folder`, `sp_read`, `sp_status` available — **read-only by default**.
 
 ### 3. Enable writes (when you're ready)
 
@@ -123,11 +123,10 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 | Tool | Purpose |
 |---|---|
 | `sp_search(query, site?, folder?, file_type?, modified_after?)` | KQL-style search across SharePoint sites the user has access to. Returns hits with name, path, web URL, last-modified date, author. |
-| `sp_list(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
+| `sp_list_folder(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
 | `sp_read(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
 | `sp_status(verify=False)` | Show what files this agent currently has checked out, when, and where the local working copies are. With `verify=True`, additionally queries SharePoint to confirm the server-side lock state — adds `server_locked` (`true`/`false`/`null`) and `lock_holder` (display name) to each entry. Costs one Graph call per registry entry. |
 | `sp_sites(query?)` | Discover SharePoint sites the user can see. `query` is a free-text site-name search; omit to list all. Useful as the agent's starting point when no site URL is known yet. |
-| `sp_subsites(parent_site_url)` | List immediate sub-sites under a parent site URL. Recurse on each result's `web_url` to walk deeper. |
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 | `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
 | `sp_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
@@ -143,7 +142,7 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 
 #### Non-default libraries
 
-URLs into **non-default document libraries** (Site Assets, Style Library, custom libraries) work transparently across `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_publish`, etc. The resolver tries the default Shared Documents drive first; on a 404, it lists the site's drives, matches the URL's first path segment to a library name, and retries against that library. One extra Graph round-trip per first-look-up at a non-default library — acceptable cost for the convenience.
+URLs into **non-default document libraries** (Site Assets, Style Library, custom libraries) work transparently across `sp_list_folder`, `sp_read`, `sp_open`, `sp_save`, `sp_publish`, etc. The resolver tries the default Shared Documents drive first; on a 404, it lists the site's drives, matches the URL's first path segment to a library name, and retries against that library. One extra Graph round-trip per first-look-up at a non-default library — acceptable cost for the convenience.
 
 ### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
 
@@ -159,7 +158,6 @@ URLs into **non-default document libraries** (Site Assets, Style Library, custom
 | `sp_delete_item(list_url, item_id)` | Delete a List item — sends to recycle bin (recoverable for ~93 days). |
 | `sp_share_create(url, type="view", scope="organization", expires?, password?)` | Create a sharing link. **Conservative defaults**: `type="view"`, `scope="organization"`. The agent must explicitly pass `scope="anonymous"` to make a public link — that's the most common ISMS-audit finding, so we don't make it the default. `type="edit"` grants WRITE to anyone with the URL within scope. |
 | `sp_share_revoke(url, link_id)` | Revoke (delete) a sharing-link permission. After this call the share URL stops working. `link_id` comes from `sp_share_create` or `sp_share_list`. |
-| `sp_page_update(page_url, title?, description?, thumbnail_web_url?)` | Update a SharePoint Page's metadata. Pass only the fields you want to change. Canvas-layout (web-parts) edits are NOT supported in v0.3 — round-tripping the deep nested JSON safely needs more design work; deferred to a follow-up. |
 
 #### Recycle bin: list-only, beta endpoint
 

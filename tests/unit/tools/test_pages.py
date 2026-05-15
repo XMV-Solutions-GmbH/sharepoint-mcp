@@ -8,8 +8,6 @@ Edge cases deliberately covered:
   URL-encoded names with spaces and apostrophes, missing segments.
 - Resolver: $filter escapes single quotes, raises PageNotFoundError
   on empty list, raises on response missing id.
-- Update: rejects empty kwargs, only sends keys that were provided,
-  translates `thumbnail_web_url` to Graph's `thumbnailWebUrl`.
 - Normaliser: canvas_layout omitted in list responses, included in
   read; lastModifiedBy with no displayName but an email; tolerant
   of malformed lastModifiedBy / non-dict canvas / non-list value.
@@ -32,7 +30,6 @@ from sharepoint_mcp.tools.pages import (
     _one_page,
     _resolve_page_id,
     page_read,
-    page_update,
     pages_list,
     parse_page_url,
 )
@@ -255,89 +252,6 @@ def test_page_read_raises_PageNotFoundError_when_response_missing_id(
     )
     with pytest.raises(PageNotFoundError, match="missing the id field"):
         page_read(PAGE_URL)
-
-
-# ---------------------------------------------------------------------
-# page_update
-# ---------------------------------------------------------------------
-
-
-@respx.mock
-def test_page_update_only_sends_provided_fields(store_with_fresh_token: None) -> None:
-    """A PATCH with title only must NOT include description or thumbnail."""
-    del store_with_fresh_token
-    _mock_site_lookup()
-    _mock_resolve_page()
-    route = respx.patch(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/pages/{PAGE_GUID}/microsoft.graph.sitePage"
-    ).respond(json={"id": PAGE_GUID, "title": "New Title"})
-    page_update(PAGE_URL, title="New Title")
-    body = route.calls.last.request.read().decode()
-    assert "title" in body and "New Title" in body
-    assert "description" not in body
-    assert "thumbnailWebUrl" not in body
-
-
-@respx.mock
-def test_page_update_translates_thumbnail_field_name(store_with_fresh_token: None) -> None:
-    """Our snake_case `thumbnail_web_url` -> Graph's `thumbnailWebUrl`."""
-    del store_with_fresh_token
-    _mock_site_lookup()
-    _mock_resolve_page()
-    route = respx.patch(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/pages/{PAGE_GUID}/microsoft.graph.sitePage"
-    ).respond(json={"id": PAGE_GUID})
-    page_update(PAGE_URL, thumbnail_web_url="https://x/new-thumb.png")
-    body = route.calls.last.request.read().decode()
-    assert "thumbnailWebUrl" in body
-    assert "https://x/new-thumb.png" in body
-
-
-@respx.mock
-def test_page_update_can_update_multiple_fields_at_once(store_with_fresh_token: None) -> None:
-    del store_with_fresh_token
-    _mock_site_lookup()
-    _mock_resolve_page()
-    route = respx.patch(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/pages/{PAGE_GUID}/microsoft.graph.sitePage"
-    ).respond(json={"id": PAGE_GUID})
-    page_update(PAGE_URL, title="T", description="D")
-    body = route.calls.last.request.read().decode()
-    assert "title" in body and "description" in body
-
-
-@respx.mock
-def test_page_update_allows_empty_string_to_clear_field(store_with_fresh_token: None) -> None:
-    """Empty string is intentional 'clear this field'; we send it through."""
-    del store_with_fresh_token
-    _mock_site_lookup()
-    _mock_resolve_page()
-    route = respx.patch(
-        f"{GRAPH_BASE}/sites/{SITE_ID}/pages/{PAGE_GUID}/microsoft.graph.sitePage"
-    ).respond(json={"id": PAGE_GUID})
-    page_update(PAGE_URL, description="")
-    body = route.calls.last.request.read().decode()
-    assert '"description"' in body
-    # The empty value is intentionally present
-    assert '""' in body or '"":' in body or '"description": ""' in body
-
-
-def test_page_update_rejects_no_fields() -> None:
-    """All None == nothing to update == reject before hitting Graph."""
-    with pytest.raises(ValueError, match="at least one of"):
-        page_update(PAGE_URL)
-
-
-@respx.mock
-def test_page_update_propagates_graph_errors(store_with_fresh_token: None) -> None:
-    del store_with_fresh_token
-    _mock_site_lookup()
-    _mock_resolve_page()
-    respx.patch(f"{GRAPH_BASE}/sites/{SITE_ID}/pages/{PAGE_GUID}/microsoft.graph.sitePage").respond(
-        403, json={"error": {"code": "accessDenied"}}
-    )
-    with pytest.raises(httpx.HTTPStatusError):
-        page_update(PAGE_URL, title="x")
 
 
 # ---------------------------------------------------------------------
