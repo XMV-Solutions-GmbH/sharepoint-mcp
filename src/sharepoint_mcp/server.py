@@ -72,7 +72,6 @@ from sharepoint_mcp.tools.sites import sites as _do_sites
 from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
-from sharepoint_mcp.tools.upload_new_file import upload_new_file as _do_upload_new_file
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
@@ -693,38 +692,12 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "yet are created in one call (recursive mkdir semantics). Existing "
             "folders are silently skipped, making the operation idempotent. "
             "Returns {created, already_existed, web_url}. "
-            "Use this BEFORE sp_upload_new_file or sp_publish when the target "
+            "Use this BEFORE sp_publish when the target "
             "folder doesn't exist yet. Requires SP_ALLOW_WRITES=true."
         ),
     )
     def sp_create_folder(site_url: str, path: str) -> dict[str, Any]:
         return _do_create_folder(site_url, path, profile=_get_profile())
-
-    @mcp_instance.tool(
-        annotations=ToolAnnotations(
-            title="Upload New File to SharePoint",
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=False,
-        ),
-        description=(
-            "Create a new file in SharePoint from inline base64-encoded content. "
-            "`site_url` is the SharePoint site URL. `path` is the destination "
-            "path including the filename, relative to the document library root "
-            "(e.g. '2026/Q2/summary.md'). `content` is the file content as a "
-            "base64-encoded string. Infers Content-Type from the filename extension; "
-            "falls back to application/octet-stream. "
-            "REFUSES if the target file already exists — use sp_open + sp_save "
-            "to edit existing files (preserves version history and audit comment). "
-            "Capped at 4 MB inline; for larger files write locally and use sp_publish. "
-            "Returns {item_id, etag, web_url, size}. "
-            "Typical workflow for a new document in a new folder: "
-            "sp_create_folder → sp_upload_new_file. Requires SP_ALLOW_WRITES=true."
-        ),
-    )
-    def sp_upload_new_file(site_url: str, path: str, content: str) -> dict[str, Any]:
-        return _do_upload_new_file(site_url, path, content, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(

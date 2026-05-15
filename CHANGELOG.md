@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`sp_upload_new_file`** — removed entirely (closes
+  [#99](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/99)).
+  The b64-inline API was an attractive nuisance: agents reached for it even for
+  files already on disk, inlining file content as base64 into the tool call
+  (wastes context tokens, risks transcription corruption on long strings).
+  Migration: write content to a local file (or a `tempfile`) and call
+  `sp_publish(local_path, target_folder_url)`. `sp_publish` reads the file
+  directly, uses zero tokens of file content in agent context, and supports
+  files of any size.
+
 ### Added
 
 - **`sp_delete_file(site_url, path)`** — soft-delete a file or folder to the
