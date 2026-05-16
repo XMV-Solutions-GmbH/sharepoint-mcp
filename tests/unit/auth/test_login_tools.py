@@ -26,12 +26,12 @@ import base64
 import json
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import httpx
 import pytest
-from mcp_microsoft_graph_auth import LoginSessionRegistry, TokenStoreLockTimeoutError
+from mcp_microsoft_graph_auth import LoginSession, LoginSessionRegistry, TokenStoreLockTimeoutError
 
 from sharepoint_mcp.auth import login_tools
 from sharepoint_mcp.auth.login_tools import (
@@ -640,12 +640,13 @@ async def test_poll_loop_sets_failed_status_on_lock_timeout(
 
     monkeypatch.setattr(login_tools, "_sync_poll_with_lock", _locked)
 
-    session = SimpleNamespace(
-        status="pending",
-        error=None,
-        signed_in_user_upn=None,
+    session = LoginSession.new(
         profile="p",
         device_code="dc",
+        user_code="U",
+        verification_url="https://x",
+        verification_url_complete=None,
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
         interval_s=5,
     )
     await login_tools._poll_loop(session, "client-id", "tenant")
@@ -677,7 +678,15 @@ def test_sync_poll_with_lock_stores_token_and_returns_it(
     monkeypatch.setattr(login_tools, "get_token_store", lambda: store)
     monkeypatch.setattr(login_tools, "DEFAULT_CACHE_DIR", tmp_path)
 
-    session = SimpleNamespace(profile="q", device_code="dc2", interval_s=5)
+    session = LoginSession.new(
+        profile="q",
+        device_code="dc2",
+        user_code="U",
+        verification_url="https://x",
+        verification_url_complete=None,
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        interval_s=5,
+    )
     result = login_tools._sync_poll_with_lock(session, "cid", "tenant")
 
     assert result is expected
