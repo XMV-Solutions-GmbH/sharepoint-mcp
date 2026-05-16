@@ -3,15 +3,12 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """SharePoint modern Pages (closes #45).
 
-Three tools for the canonical wiki/knowledge-base format on
+Two read-only tools for the canonical wiki/knowledge-base format on
 SharePoint Online (modern site pages — distinct from documents in
 libraries):
 
-- `sp_pages_list(site_url)` — list pages on a site (read-only)
+- `sp_pages_list(site_url)` — list pages on a site
 - `sp_page_read(page_url)` — fetch a page including canvas layout
-  (read-only)
-- `sp_page_update(page_url, **fields)` — update page metadata
-  (title / description / thumbnail) (write)
 
 URL convention: page URLs follow SharePoint's canonical form
 `https://<host>/sites/<name>/SitePages/<filename>.aspx`. We parse
@@ -21,12 +18,12 @@ the trailing `.aspx` filename and look the page up via Graph's
 
 Canvas layout shape: Microsoft Graph exposes the page's web-parts
 via `canvasLayout` (sections > columns > webParts). `sp_page_read`
-returns the canvas as raw JSON for lossless inspection. Editing
-the canvas is **deferred** to a follow-up: the structure is deep
-and a wrong PATCH can break the page beyond easy recovery. For
-v0.3, `sp_page_update` accepts only title / description /
-thumbnail metadata; canvas edits land in a separate ticket once
-we have a clearer agent UX for them.
+returns the canvas as raw JSON for lossless inspection. Writing
+pages back is intentionally out of scope: a metadata-only write
+would be a half-tool (read full content + canvas, write only title)
+that misleads agents into reaching for it expecting full edits, and
+canvas writes need a clearer agent UX before they're safe. Today
+modern Pages have to be edited via the SharePoint web UI.
 
 Item shape (sp_pages_list, sp_page_read):
 
@@ -178,73 +175,12 @@ def page_read(
 
 
 # ---------------------------------------------------------------------
-# Write tool
-# ---------------------------------------------------------------------
-
-
-_UPDATABLE_FIELDS = frozenset({"title", "description", "thumbnail_web_url"})
-
-
-def page_update(
-    page_url: str,
-    *,
-    title: str | None = None,
-    description: str | None = None,
-    thumbnail_web_url: str | None = None,
-    profile: str = "default",
-    http: httpx.Client | None = None,
-) -> dict[str, Any]:
-    """Update a SharePoint page's metadata. Returns the updated page.
-
-    Accepts `title`, `description`, and `thumbnail_web_url`. Pass
-    `None` (default) to leave a field unchanged. At least one field
-    must be provided — otherwise Graph rejects an empty PATCH.
-
-    Canvas-layout edits are out of scope for v0.3; see module
-    docstring for rationale.
-    """
-    update: dict[str, Any] = {}
-    if title is not None:
-        update["title"] = title
-    if description is not None:
-        update["description"] = description
-    if thumbnail_web_url is not None:
-        update["thumbnailWebUrl"] = thumbnail_web_url
-    if not update:
-        raise ValueError(
-            "sp_page_update requires at least one of: title, description, "
-            "thumbnail_web_url. Pass None to leave a field unchanged.",
-        )
-
-    hostname, site_path, page_name = parse_page_url(page_url)
-    token = get_token(profile)
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    client = http if http is not None else httpx.Client(timeout=30.0)
-    try:
-        site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-        page_id = _resolve_page_id(client, site_id, page_name, headers=headers)
-        response = client.patch(
-            f"{GRAPH_BASE}/sites/{site_id}/pages/{page_id}/microsoft.graph.sitePage",
-            headers=headers,
-            json=update,
-        )
-        response.raise_for_status()
-        return _one_page(response.json(), include_canvas=False)
-    finally:
-        if http is None:
-            client.close()
-
-
-# ---------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------
 
 
 class PageNotFoundError(RuntimeError):
-    """Raised when sp_page_read / sp_page_update can't find a page by name.
+    """Raised when sp_page_read can't find a page by name.
 
     Different from a 404 — the list query succeeds but the response
     contains no matching page. Surfaced as a distinct exception so

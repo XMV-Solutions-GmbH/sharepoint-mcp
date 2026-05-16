@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_sites / sp_subsites / sp_followed_sites (#49)."""
+"""Harness tests for sp_sites / sp_followed_sites (#49)."""
 
 from __future__ import annotations
 
 import pytest
 
 from sharepoint_mcp.auth import AuthRequiredError, get_token
-from sharepoint_mcp.tools.sites import drives, followed_sites, sites, subsites
+from sharepoint_mcp.tools.sites import drives, followed_sites, sites
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -49,17 +49,6 @@ def test_sites_wildcard_returns_at_least_one_site() -> None:
     assert len(results) >= 1
 
 
-def test_subsites_returns_list_for_harness_site() -> None:
-    _skip_if_no_harness()
-    results = subsites(HARNESS_SITE_URL, profile=HARNESS_PROFILE)
-    assert isinstance(results, list)
-    # The harness site may or may not have sub-sites; we don't assert on
-    # count, just shape.
-    for entry in results:
-        assert "id" in entry
-        assert "web_url" in entry
-
-
 def test_followed_sites_returns_list() -> None:
     """The harness user may not have any followed sites; we don't assert
     on count, just on response shape and that the call doesn't error."""
@@ -69,11 +58,6 @@ def test_followed_sites_returns_list() -> None:
     for entry in results:
         assert "id" in entry
         assert "web_url" in entry
-
-
-def test_subsites_validation_does_not_need_harness() -> None:
-    with pytest.raises(ValueError, match="non-empty parent_site_url"):
-        subsites("", profile=HARNESS_PROFILE)
 
 
 def test_drives_lists_at_least_default_library() -> None:

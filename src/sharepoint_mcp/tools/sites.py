@@ -3,24 +3,17 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Site discovery (closes #49).
 
-Three tools, all read-only:
+Two read-only tools:
 
 - `sp_sites(query=None)` — search across sites the user can see.
   Wraps `GET /sites?search=...`. Empty query lists everything visible
   via the multi-tenant default (typically sites under the user's
   primary tenant).
-- `sp_subsites(parent_site_url)` — list child sites under a parent
-  via `GET /sites/{site-id}/sites`.
 - `sp_followed_sites()` — the "my SharePoint" entrypoint, wrapping
   `GET /me/followedSites`. Useful for an agent that wants to start
   from the user's curated list rather than guess at site URLs.
 
-The parent_site URL passed to `sp_subsites` follows the same path
-shape as every other `sp_*` tool (`https://<tenant>/sites/<name>`).
-We resolve it to a Graph site ID via the existing
-`resolve_site_id` helper.
-
-Returned dict shape per site (consistent across all three tools):
+Returned dict shape per site (consistent across both tools):
 
     {
         "id": "<graph-site-id>",
@@ -32,8 +25,8 @@ Returned dict shape per site (consistent across all three tools):
 
 The `id` is the Graph composite ID (`hostname,siteCollectionId,webId`)
 that other Graph endpoints accept. Callers don't usually need it —
-the `web_url` is what they pass to `sp_list` / `sp_search` etc. — but
-it's exposed for advanced use.
+the `web_url` is what they pass to `sp_list_folder` / `sp_search` etc. —
+but it's exposed for advanced use.
 """
 
 from __future__ import annotations
@@ -49,6 +42,8 @@ from sharepoint_mcp.tools._common import (
     parse_sharepoint_url,
     resolve_site_id,
 )
+
+__all__ = ["drives", "followed_sites", "sites"]
 
 
 def sites(
@@ -77,45 +72,6 @@ def sites(
             f"{GRAPH_BASE}/sites",
             headers=headers,
             params={"search": search_value},
-        )
-        response.raise_for_status()
-        return _extract_sites(response.json())
-    finally:
-        if http is None:
-            client.close()
-
-
-def subsites(
-    parent_site_url: str,
-    *,
-    profile: str = "default",
-    http: httpx.Client | None = None,
-) -> list[dict[str, Any]]:
-    """List immediate child sites under a parent site URL.
-
-    `parent_site_url` is the parent's human-readable web URL
-    (`https://contoso.sharepoint.com/sites/parent`). Returns the
-    direct children only — to walk deeper, recurse on each result's
-    `web_url`.
-    """
-    if not parent_site_url or not parent_site_url.strip():
-        raise ValueError("sp_subsites requires a non-empty parent_site_url")
-
-    hostname, site_path, item_path = parse_sharepoint_url(parent_site_url)
-    if item_path:
-        raise ValueError(
-            f"sp_subsites expects a site URL, not a file/folder URL "
-            f"(got {parent_site_url!r}; item path {item_path!r}).",
-        )
-
-    token = get_token(profile)
-    headers = {"Authorization": f"Bearer {token}"}
-    client = http if http is not None else httpx.Client(timeout=30.0)
-    try:
-        site_id = resolve_site_id(client, hostname, site_path, headers=headers)
-        response = client.get(
-            f"{GRAPH_BASE}/sites/{site_id}/sites",
-            headers=headers,
         )
         response.raise_for_status()
         return _extract_sites(response.json())

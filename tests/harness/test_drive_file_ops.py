@@ -9,9 +9,10 @@ Graph API contract that unit tests with mocks cannot catch.
 
 from __future__ import annotations
 
-import base64
+import tempfile
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -21,8 +22,8 @@ from sharepoint_mcp.tools.copy_file import copy_file
 from sharepoint_mcp.tools.create_folder import create_folder
 from sharepoint_mcp.tools.delete_file import delete_file
 from sharepoint_mcp.tools.move_file import move_file
+from sharepoint_mcp.tools.publish import publish
 from sharepoint_mcp.tools.trash import trash_list
-from sharepoint_mcp.tools.upload_new_file import upload_new_file
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -38,9 +39,19 @@ def _skip_if_no_harness() -> None:
         )
 
 
-def _txt(label: str) -> str:
-    """Minimal text file content as base64."""
-    return base64.b64encode(f"# Harness test\n{label}\n".encode()).decode()
+def _publish_text(path: str, label: str) -> None:
+    """Write a small text file to a temp file and publish it at `path`
+    (relative to the default document library root)."""
+    p = Path(path)
+    folder_url = f"{HARNESS_SITE_URL}/Shared Documents/{p.parent}"
+    content = f"# Harness test\n{label}\n".encode()
+    with tempfile.NamedTemporaryFile(suffix=p.suffix, delete=False) as f:
+        f.write(content)
+        tmp = Path(f.name)
+    try:
+        publish(str(tmp), folder_url, name=p.name, profile=HARNESS_PROFILE)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 @pytest.fixture
@@ -64,7 +75,7 @@ def test_delete_file_moves_to_recycle_bin(harness_root: str) -> None:
     _skip_if_no_harness()
     create_folder(HARNESS_SITE_URL, harness_root, profile=HARNESS_PROFILE)
     path = f"{harness_root}/to-delete.txt"
-    upload_new_file(HARNESS_SITE_URL, path, _txt("delete me"), profile=HARNESS_PROFILE)
+    _publish_text(path, "delete me")
 
     result = delete_file(HARNESS_SITE_URL, path, profile=HARNESS_PROFILE)
 
@@ -101,7 +112,7 @@ def test_move_file_to_different_folder(harness_root: str) -> None:
     create_folder(HARNESS_SITE_URL, dst_folder, profile=HARNESS_PROFILE)
 
     src_path = f"{src_folder}/move-me.txt"
-    upload_new_file(HARNESS_SITE_URL, src_path, _txt("move me"), profile=HARNESS_PROFILE)
+    _publish_text(src_path, "move me")
 
     dst_path = f"{dst_folder}/move-me.txt"
     result = move_file(HARNESS_SITE_URL, src_path, dst_path, profile=HARNESS_PROFILE)
@@ -116,7 +127,7 @@ def test_move_file_rename_in_place(harness_root: str) -> None:
     _skip_if_no_harness()
     create_folder(HARNESS_SITE_URL, harness_root, profile=HARNESS_PROFILE)
     src_path = f"{harness_root}/before.txt"
-    upload_new_file(HARNESS_SITE_URL, src_path, _txt("rename me"), profile=HARNESS_PROFILE)
+    _publish_text(src_path, "rename me")
 
     dst_path = f"{harness_root}/after.txt"
     result = move_file(HARNESS_SITE_URL, src_path, dst_path, profile=HARNESS_PROFILE)
@@ -138,7 +149,7 @@ def test_copy_file_creates_independent_copy(harness_root: str) -> None:
     create_folder(HARNESS_SITE_URL, dst_folder, profile=HARNESS_PROFILE)
 
     src_path = f"{src_folder}/template.txt"
-    upload_new_file(HARNESS_SITE_URL, src_path, _txt("template"), profile=HARNESS_PROFILE)
+    _publish_text(src_path, "template")
 
     dst_path = f"{dst_folder}/instance.txt"
     result = copy_file(HARNESS_SITE_URL, src_path, dst_path, profile=HARNESS_PROFILE)

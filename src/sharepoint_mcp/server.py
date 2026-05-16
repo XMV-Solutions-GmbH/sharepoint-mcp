@@ -55,7 +55,6 @@ from sharepoint_mcp.tools.lists import update_item as _do_update_item
 from sharepoint_mcp.tools.move_file import move_file as _do_move_file
 from sharepoint_mcp.tools.open_file import open_file as _do_open
 from sharepoint_mcp.tools.pages import page_read as _do_page_read
-from sharepoint_mcp.tools.pages import page_update as _do_page_update
 from sharepoint_mcp.tools.pages import pages_list as _do_pages_list
 from sharepoint_mcp.tools.permissions import permissions as _do_permissions
 from sharepoint_mcp.tools.publish import publish as _do_publish
@@ -69,10 +68,8 @@ from sharepoint_mcp.tools.sharing import share_revoke as _do_share_revoke
 from sharepoint_mcp.tools.sites import drives as _do_drives
 from sharepoint_mcp.tools.sites import followed_sites as _do_followed_sites
 from sharepoint_mcp.tools.sites import sites as _do_sites
-from sharepoint_mcp.tools.sites import subsites as _do_subsites
 from sharepoint_mcp.tools.status import status as _do_status
 from sharepoint_mcp.tools.trash import trash_list as _do_trash_list
-from sharepoint_mcp.tools.upload_new_file import upload_new_file as _do_upload_new_file
 
 PROFILE_ENV = "SP_PROFILE"
 DEFAULT_PROFILE = "default"
@@ -224,7 +221,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "and webUrl. Read-only — does not modify SharePoint state."
         ),
     )
-    def sp_list(url: str, limit: int = 100) -> list[dict[str, Any]]:
+    def sp_list_folder(url: str, limit: int = 100) -> list[dict[str, Any]]:
         return _do_list(url, limit=limit, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -301,24 +298,6 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_sites(query: str | None = None) -> list[dict[str, Any]]:
         return _do_sites(query, profile=_get_profile())
-
-    @mcp_instance.tool(
-        annotations=ToolAnnotations(
-            title="List SharePoint Sub-Sites",
-            readOnlyHint=True,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-        description=(
-            "List immediate sub-sites under a parent SharePoint site. "
-            "`parent_site_url` is the parent's web URL "
-            "(e.g. https://contoso.sharepoint.com/sites/parent). "
-            "Returns direct children only — recurse on each result's "
-            "web_url to walk deeper. Read-only."
-        ),
-    )
-    def sp_subsites(parent_site_url: str) -> list[dict[str, Any]]:
-        return _do_subsites(parent_site_url, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
@@ -462,12 +441,15 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             openWorldHint=False,
         ),
         description=(
-            "List existing sharing links on a SharePoint file or folder. "
+            "List existing **sharing links** on a SharePoint file or folder. "
             "Each entry: id (use with sp_share_revoke), web_url (the share "
             "URL), type (view/edit/embed/blocksDownload), scope (organization"
             "/anonymous/users), roles, expiration, has_password. "
             "Read-only — does not create or revoke. Use sp_share_create to "
-            "make a new link, sp_share_revoke to remove one."
+            "make a new link, sp_share_revoke to remove one. "
+            "SCOPE: only sharing-link permissions. For ALL access grants "
+            "(direct user/group assignments, inherited site permissions, "
+            "plus sharing links) use sp_permissions instead."
         ),
     )
     def sp_share_list(url: str) -> list[dict[str, Any]]:
@@ -488,7 +470,11 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "({type, display_name, email, link_type, link_scope}), and "
             "inherited flag. Read-only — does not modify any permission "
             "state. Use this to answer 'who can see/edit this?' before "
-            "suggesting changes or sharing links."
+            "suggesting changes or sharing links. "
+            "SCOPE: all permission grants — direct user/group assignments, "
+            "inherited site permissions, AND sharing links. To list only "
+            "sharing links (and get their `id` for sp_share_revoke), use "
+            "sp_share_list instead."
         ),
     )
     def sp_permissions(url: str) -> list[dict[str, Any]]:
@@ -503,12 +489,14 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         ),
         description=(
             "List items in the SharePoint site's recycle bin. Returns "
-            "each item's id (use with sp_trash_restore), name, size, "
-            "deleted_date_time, deleted_from_location (original folder), "
-            "and deleted_by (display name). Read-only. NOTE: this tool "
-            "currently uses Microsoft Graph's /beta endpoint — the "
-            "site-level recycle-bin API has not yet been promoted to "
-            "v1.0. Schema may shift; we'll migrate when v1.0 lands."
+            "each item's id, name, size, deleted_date_time, "
+            "deleted_from_location (original folder), and deleted_by "
+            "(display name). Read-only. NOTE: Microsoft Graph does not "
+            "expose a restore action at site scope; items currently have "
+            "to be restored via the SharePoint web UI. This tool uses "
+            "Graph's /beta endpoint — the site-level recycle-bin API has "
+            "not yet been promoted to v1.0. Schema may shift; we'll "
+            "migrate when v1.0 lands."
         ),
     )
     def sp_trash_list(site_url: str, limit: int = 200) -> list[dict[str, Any]]:
@@ -693,38 +681,12 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "yet are created in one call (recursive mkdir semantics). Existing "
             "folders are silently skipped, making the operation idempotent. "
             "Returns {created, already_existed, web_url}. "
-            "Use this BEFORE sp_upload_new_file or sp_publish when the target "
+            "Use this BEFORE sp_publish when the target "
             "folder doesn't exist yet. Requires SP_ALLOW_WRITES=true."
         ),
     )
     def sp_create_folder(site_url: str, path: str) -> dict[str, Any]:
         return _do_create_folder(site_url, path, profile=_get_profile())
-
-    @mcp_instance.tool(
-        annotations=ToolAnnotations(
-            title="Upload New File to SharePoint",
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=False,
-        ),
-        description=(
-            "Create a new file in SharePoint from inline base64-encoded content. "
-            "`site_url` is the SharePoint site URL. `path` is the destination "
-            "path including the filename, relative to the document library root "
-            "(e.g. '2026/Q2/summary.md'). `content` is the file content as a "
-            "base64-encoded string. Infers Content-Type from the filename extension; "
-            "falls back to application/octet-stream. "
-            "REFUSES if the target file already exists — use sp_open + sp_save "
-            "to edit existing files (preserves version history and audit comment). "
-            "Capped at 4 MB inline; for larger files write locally and use sp_publish. "
-            "Returns {item_id, etag, web_url, size}. "
-            "Typical workflow for a new document in a new folder: "
-            "sp_create_folder → sp_upload_new_file. Requires SP_ALLOW_WRITES=true."
-        ),
-    )
-    def sp_upload_new_file(site_url: str, path: str, content: str) -> dict[str, Any]:
-        return _do_upload_new_file(site_url, path, content, profile=_get_profile())
 
     @mcp_instance.tool(
         annotations=ToolAnnotations(
@@ -949,38 +911,6 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_share_revoke(url: str, link_id: str) -> None:
         _do_share_revoke(url, link_id, profile=_get_profile())
-
-    @mcp_instance.tool(
-        annotations=ToolAnnotations(
-            title="Update SharePoint Page",
-            readOnlyHint=False,
-            destructiveHint=True,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-        description=(
-            "Update a SharePoint Page's metadata. Pass the fields you "
-            "want to change as kwargs: title, description, "
-            "thumbnail_web_url. Pass None (default) to leave a field "
-            "unchanged. At least one field is required. Canvas-layout "
-            "(web-parts) edits are NOT supported in v0.3 — round-tripping "
-            "the deep nested JSON safely needs more design work; tracked "
-            "as a follow-up."
-        ),
-    )
-    def sp_page_update(
-        page_url: str,
-        title: str | None = None,
-        description: str | None = None,
-        thumbnail_web_url: str | None = None,
-    ) -> dict[str, Any]:
-        return _do_page_update(
-            page_url,
-            title=title,
-            description=description,
-            thumbnail_web_url=thumbnail_web_url,
-            profile=_get_profile(),
-        )
 
 
 def _build_server() -> FastMCP:

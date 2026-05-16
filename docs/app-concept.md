@@ -45,7 +45,7 @@ The Microsoft Graph API exposes a clean **checkout / edit / checkin** model. Thi
 sp_search(query, site?, folder?, file_type?, modified_after?)
     → list of (path, web_url, last_modified, author)
 
-sp_list(path)
+sp_list_folder(path)
     → folder listing with type/size/modified for each child
 
 sp_read(path)

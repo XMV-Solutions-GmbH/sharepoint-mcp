@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_list — list children of a SharePoint folder by URL.
+"""sp_list_folder — list children of a SharePoint folder by URL.
 
 Resolves a SharePoint URL into a Microsoft Graph drive item via two
 calls:
@@ -63,7 +63,7 @@ def list_folder(
     token exists for `profile`.
     """
     if not url or not url.strip():
-        raise ValueError("sp_list requires a non-empty url")
+        raise ValueError("sp_list_folder requires a non-empty url")
     if limit <= 0:
         raise ValueError(f"limit must be positive, got {limit}")
 

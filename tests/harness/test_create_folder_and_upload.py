@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_create_folder and sp_upload_new_file against real SharePoint.
+"""Harness tests for sp_create_folder (and its integration with sp_publish).
 
 These tests were absent in v0.6.0 — that omission allowed a URL bug in
 sp_create_folder (missing `:` before `/children` in path-based Graph URLs) to
@@ -11,9 +11,9 @@ harness catches API contract violations that mocks cannot.
 
 from __future__ import annotations
 
-import base64
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -21,7 +21,7 @@ import pytest
 from sharepoint_mcp.auth import AuthRequiredError, get_token
 from sharepoint_mcp.tools._common import GRAPH_BASE
 from sharepoint_mcp.tools.create_folder import create_folder
-from sharepoint_mcp.tools.upload_new_file import FileAlreadyExistsError, upload_new_file
+from sharepoint_mcp.tools.publish import publish
 
 HARNESS_PROFILE = "harness"
 HARNESS_SITE_URL = "https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness"
@@ -124,38 +124,39 @@ def test_create_folder_partial_pre_existence(harness_test_root: str) -> None:
 
 
 # ---------------------------------------------------------------------
-# sp_upload_new_file — real Graph API
+# sp_create_folder + sp_publish integration — real Graph API
 # ---------------------------------------------------------------------
 
 
-def test_upload_new_file_creates_file(harness_test_root: str) -> None:
-    """Upload a small text file; verify it lands in SharePoint with correct content."""
+def test_create_folder_then_publish(harness_test_root: str, tmp_path: Path) -> None:
+    """Create a folder and publish a file into it — the standard new-document workflow."""
     _skip_if_no_harness()
     create_folder(HARNESS_SITE_URL, harness_test_root, profile=HARNESS_PROFILE)
 
-    payload = f"# Harness upload test\n\nGenerated at {time.time()}\n".encode()
-    path = f"{harness_test_root}/test.md"
-    result = upload_new_file(
-        HARNESS_SITE_URL,
-        path,
-        base64.b64encode(payload).decode(),
-        profile=HARNESS_PROFILE,
-    )
+    src = tmp_path / "test.md"
+    src.write_text(f"# Harness test\n\nGenerated at {time.time()}\n", encoding="utf-8")
+    folder_url = f"{HARNESS_SITE_URL}/Shared Documents/{harness_test_root}"
 
-    assert result["item_id"]
-    assert result["etag"]
+    result = publish(str(src), folder_url, profile=HARNESS_PROFILE)
+
+    assert result["name"] == "test.md"
     assert result["web_url"]
-    assert result["size"] == len(payload)
+    assert result["size"] == src.stat().st_size
 
 
-def test_upload_new_file_refuses_to_overwrite(harness_test_root: str) -> None:
-    """Uploading to an already-occupied path raises FileAlreadyExistsError."""
+def test_publish_refuses_overwrite_in_created_folder(
+    harness_test_root: str, tmp_path: Path
+) -> None:
+    """Publishing the same filename twice into the same folder raises FileExistsError."""
     _skip_if_no_harness()
     create_folder(HARNESS_SITE_URL, harness_test_root, profile=HARNESS_PROFILE)
 
-    path = f"{harness_test_root}/once.txt"
-    content = base64.b64encode(b"first").decode()
-    upload_new_file(HARNESS_SITE_URL, path, content, profile=HARNESS_PROFILE)
+    src = tmp_path / "once.txt"
+    src.write_text("first", encoding="utf-8")
+    folder_url = f"{HARNESS_SITE_URL}/Shared Documents/{harness_test_root}"
 
-    with pytest.raises(FileAlreadyExistsError, match="sp_open"):
-        upload_new_file(HARNESS_SITE_URL, path, content, profile=HARNESS_PROFILE)
+    publish(str(src), folder_url, profile=HARNESS_PROFILE)
+
+    src.write_text("second (must not land)", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="sp_open"):
+        publish(str(src), folder_url, profile=HARNESS_PROFILE)

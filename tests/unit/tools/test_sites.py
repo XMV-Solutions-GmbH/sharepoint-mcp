@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_sites / sp_subsites / sp_followed_sites (#49)."""
+"""Unit tests for sp_sites / sp_followed_sites (#49)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from sharepoint_mcp.tools.sites import (
     drives,
     followed_sites,
     sites,
-    subsites,
 )
 
 
@@ -128,47 +127,6 @@ def test_sites_propagates_4xx(store_with_fresh_token: None) -> None:
     respx.get(f"{GRAPH_BASE}/sites").respond(403, json={"error": {"code": "accessDenied"}})
     with pytest.raises(httpx.HTTPStatusError):
         sites()
-
-
-# ---------------------------------------------------------------------
-# subsites()
-# ---------------------------------------------------------------------
-
-
-@respx.mock
-def test_subsites_resolves_parent_then_lists_children(store_with_fresh_token: None) -> None:
-    del store_with_fresh_token
-    respx.get(f"{GRAPH_BASE}/sites/{SITE_HOST}:/sites/parent").respond(json={"id": SITE_ID})
-    respx.get(f"{GRAPH_BASE}/sites/{SITE_ID}/sites").respond(
-        json={
-            "value": [
-                {
-                    "id": "child-1",
-                    "displayName": "Child One",
-                    "webUrl": "https://x/sites/parent/child1",
-                },
-            ]
-        },
-    )
-    [child] = subsites(f"https://{SITE_HOST}/sites/parent")
-    assert child["name"] == "Child One"
-    assert child["web_url"] == "https://x/sites/parent/child1"
-
-
-def test_subsites_rejects_empty_url() -> None:
-    with pytest.raises(ValueError, match="non-empty parent_site_url"):
-        subsites("")
-
-
-def test_subsites_rejects_blank_url() -> None:
-    with pytest.raises(ValueError, match="non-empty parent_site_url"):
-        subsites("   ")
-
-
-def test_subsites_rejects_file_url() -> None:
-    """Refuses URLs that point at files / folders rather than sites."""
-    with pytest.raises(ValueError, match="expects a site URL"):
-        subsites(f"https://{SITE_HOST}/sites/foo/Shared Documents/policy.docx")
 
 
 # ---------------------------------------------------------------------
