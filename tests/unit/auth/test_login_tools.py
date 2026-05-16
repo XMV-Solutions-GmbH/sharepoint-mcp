@@ -739,5 +739,3 @@ class _DictStore:
 
     def delete(self, profile: str) -> None:
         self._d.pop(profile, None)
-
-
