@@ -26,14 +26,16 @@ import base64
 import json
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
-from mcp_microsoft_graph_auth import LoginSessionRegistry
+from mcp_microsoft_graph_auth import LoginSession, LoginSessionRegistry, TokenStoreLockTimeoutError
 
 from sharepoint_mcp.auth import login_tools
 from sharepoint_mcp.auth.login_tools import (
+    ConcurrentLoginAttemptError,
     DeviceCodeRequestFailedError,
     ServicePrincipalActiveError,
     _extract_upn_from_jwt,
@@ -552,6 +554,146 @@ def test_extract_upn_handles_non_json_payload() -> None:
 
 
 # ---------------------------------------------------------------------
+# login_begin — concurrent-lock guard (#77)
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_login_begin_raises_concurrent_error_when_lock_held(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """If the lock probe sees a concurrent holder, login_begin raises
+    ConcurrentLoginAttemptError before touching /devicecode."""
+
+    def _locked(path: object) -> None:
+        raise TokenStoreLockTimeoutError(tmp_path / "login.lock", 0.1)
+
+    monkeypatch.setattr(login_tools, "_probe_login_lock", _locked)
+    with pytest.raises(ConcurrentLoginAttemptError, match="Another process"):
+        await login_begin(profile="default")
+
+
+@pytest.mark.asyncio
+async def test_login_begin_concurrent_error_does_not_call_devicecode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """No /devicecode HTTP round-trip is made when the lock probe fails."""
+    called = {"n": 0}
+
+    def _locked(path: object) -> None:
+        raise TokenStoreLockTimeoutError(tmp_path / "login.lock", 0.1)
+
+    def _count(**kw: object) -> object:
+        called["n"] += 1
+        raise AssertionError("should not be reached")
+
+    monkeypatch.setattr(login_tools, "_probe_login_lock", _locked)
+    monkeypatch.setattr(login_tools, "request_device_code", _count)
+    with pytest.raises(ConcurrentLoginAttemptError):
+        await login_begin(profile="default")
+    assert called["n"] == 0
+
+
+# ---------------------------------------------------------------------
+# _login_lock_path
+# ---------------------------------------------------------------------
+
+
+def test_login_lock_path_structure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Lock file must be inside DEFAULT_CACHE_DIR / profile / login.lock,
+    and the parent directory must be created on demand."""
+    monkeypatch.setattr(login_tools, "DEFAULT_CACHE_DIR", tmp_path)
+    path = login_tools._login_lock_path("my-profile")
+    assert path == tmp_path / "my-profile" / "login.lock"
+    assert path.parent.is_dir()
+
+
+def test_login_lock_path_profile_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Different profiles must produce different lock paths."""
+    monkeypatch.setattr(login_tools, "DEFAULT_CACHE_DIR", tmp_path)
+    assert login_tools._login_lock_path("a") != login_tools._login_lock_path("b")
+
+
+# ---------------------------------------------------------------------
+# _poll_loop — TokenStoreLockTimeoutError surfaces correctly
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_poll_loop_sets_failed_status_on_lock_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Narrow race: probe succeeded but another process grabbed the lock
+    before the task started. _poll_loop must record status=failed with
+    code=concurrent_login_attempt (not leave the session stuck as pending)."""
+
+    def _locked(session: object, client_id: str, tenant: str) -> object:
+        raise TokenStoreLockTimeoutError(Path("/tmp/login.lock"), 1200.0)
+
+    monkeypatch.setattr(login_tools, "_sync_poll_with_lock", _locked)
+
+    session = LoginSession.new(
+        profile="p",
+        device_code="dc",
+        user_code="U",
+        verification_url="https://x",
+        verification_url_complete=None,
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        interval_s=5,
+    )
+    await login_tools._poll_loop(session, "client-id", "tenant")
+    assert session.status == "failed"
+    assert session.error is not None
+    assert session.error["code"] == "concurrent_login_attempt"
+
+
+# ---------------------------------------------------------------------
+# _sync_poll_with_lock — happy path
+# ---------------------------------------------------------------------
+
+
+def test_sync_poll_with_lock_stores_token_and_returns_it(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Happy path: poll_for_token returns a token; the token is written to
+    the store and the same object is returned to the caller."""
+    expected = CachedToken(
+        access_token=_make_jwt({"upn": "stored@x.com"}),
+        refresh_token="rt",
+        expires_at=time.time() + 3600,
+        scope="",
+    )
+
+    monkeypatch.setattr(login_tools, "poll_for_token", lambda **kw: expected)
+    store = _DictStore()
+    monkeypatch.setattr(login_tools, "get_token_store", lambda: store)
+    monkeypatch.setattr(login_tools, "DEFAULT_CACHE_DIR", tmp_path)
+
+    session = LoginSession.new(
+        profile="q",
+        device_code="dc2",
+        user_code="U",
+        verification_url="https://x",
+        verification_url_complete=None,
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        interval_s=5,
+    )
+    result = login_tools._sync_poll_with_lock(session, "cid", "tenant")
+
+    assert result is expected
+    assert store.get("q") == expected.to_json().encode()
+
+
+# ---------------------------------------------------------------------
 # _none helper shape pin
 # ---------------------------------------------------------------------
 
@@ -606,7 +748,3 @@ class _DictStore:
 
     def delete(self, profile: str) -> None:
         self._d.pop(profile, None)
-
-
-# Suppress unused-import warning — Path is reserved for future tmp-file tests.
-_ = Path

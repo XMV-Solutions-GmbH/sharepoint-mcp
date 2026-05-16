@@ -40,6 +40,7 @@ import base64
 import binascii
 import json
 from datetime import UTC, datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -51,7 +52,9 @@ from mcp_microsoft_graph_auth import (
     DeviceCodeExpiredError,
     LoginSession,
     LoginSessionRegistry,
+    TokenStoreLockTimeoutError,
 )
+from mcp_microsoft_graph_auth._filelock import exclusive_lock
 from mcp_microsoft_graph_auth.tokens import CachedToken
 
 from sharepoint_mcp.auth import (
@@ -65,7 +68,7 @@ from sharepoint_mcp.auth.flow import (
     request_device_code,
 )
 from sharepoint_mcp.auth.service_principal import is_service_principal_mode
-from sharepoint_mcp.auth.store import get_token_store
+from sharepoint_mcp.auth.store import DEFAULT_CACHE_DIR, get_token_store
 
 # Module-level registry instance. Process-scoped: shared across all
 # tool calls within a single MCP server lifetime. Test isolation
@@ -75,11 +78,11 @@ _REGISTRY = LoginSessionRegistry()
 
 
 class ConcurrentLoginAttemptError(RuntimeError):
-    """Another process holds the token-cache lock for this profile.
+    """Another process already holds the login-flow lock for this profile.
 
-    Reserved for the future cross-process file-lock work (#77). For
-    v0.3.1's in-process-only implementation, this is raised only when
-    explicitly forced (no real concurrency guard yet).
+    Raised when `sp_login_begin` detects a cross-process Device Code
+    flow in progress (CLI or another MCP server instance). The agent
+    should surface this to the user and ask them to wait before retrying.
     """
 
 
@@ -156,6 +159,20 @@ async def login_begin(
     client_id = _resolve_client_id(None)
     tenant = _resolve_tenant(None)
 
+    # Cross-process guard: fail fast if the CLI or another MCP server
+    # instance already holds the login-flow lock for this profile.
+    # The full-duration lock is held inside _poll_loop; this probe
+    # prevents an unnecessary /devicecode round-trip and gives the
+    # agent an immediate, actionable error instead of a silent race.
+    _flow_lock_path = _login_lock_path(profile)
+    try:
+        await asyncio.to_thread(_probe_login_lock, _flow_lock_path)
+    except TokenStoreLockTimeoutError:
+        raise ConcurrentLoginAttemptError(
+            f"Another process is already running a Device Code login for "
+            f"profile {profile!r}. Wait for it to complete and then retry.",
+        ) from None
+
     try:
         device_code, challenge = await asyncio.to_thread(
             request_device_code,
@@ -198,27 +215,31 @@ async def _poll_loop(
 ) -> None:
     """Drive the Device Code poll until success / expiry / cancel.
 
-    Updates `session.status` in place. On success, also writes the
-    token to the configured TokenStore and sets `signed_in_user_upn`
-    via JWT-claim extraction (cached `/me` lookup is a fallback we
-    skip here for simplicity — extracting from the claim works in
-    99% of cases).
+    Runs the blocking poll inside a thread via `asyncio.to_thread`.
+    The login-flow file lock is held for the entire poll duration so
+    that a concurrent CLI login or a second MCP server process can
+    detect the in-progress flow and fail fast with a clear error
+    instead of starting a competing Device Code flow.
+
+    Updates `session.status` in place.
     """
     try:
         cached = await asyncio.to_thread(
-            poll_for_token,
-            device_code=session.device_code,
-            client_id=client_id,
-            tenant=tenant,
-            interval=session.interval_s,
+            _sync_poll_with_lock,
+            session,
+            client_id,
+            tenant,
         )
-        store = get_token_store()
-        store.set(session.profile, cached.to_json().encode())
         session.signed_in_user_upn = _extract_upn_from_jwt(cached.access_token)
         session.status = "success"
     except asyncio.CancelledError:
         session.status = "cancelled"
         raise
+    except TokenStoreLockTimeoutError as exc:
+        # Another process grabbed the lock between the probe in
+        # login_begin and the task start — rare but possible.
+        session.status = "failed"
+        session.error = {"code": "concurrent_login_attempt", "message": str(exc)}
     except DeviceCodeExpiredError as exc:
         session.status = "expired"
         session.error = {"code": "expired", "message": str(exc)}
@@ -228,6 +249,68 @@ async def _poll_loop(
     except (httpx.HTTPError, RuntimeError) as exc:
         session.status = "failed"
         session.error = {"code": "unknown", "message": str(exc)}
+
+
+def _sync_poll_with_lock(
+    session: LoginSession,
+    client_id: str,
+    tenant: str,
+) -> CachedToken:
+    """Blocking poll under the login-flow file lock.
+
+    Acquires the cross-process login-flow lock for this profile for
+    the entire poll duration (~up to 15 min). The lock prevents two
+    processes from driving simultaneous Device Code flows for the
+    same profile, which would confuse the user with two prompts.
+
+    Raises `TokenStoreLockTimeoutError` if another process already
+    holds the lock (the probe in `login_begin` already caught this in
+    the common case; this handles the narrow race window between probe
+    and task start).
+    """
+    lock_path = _login_lock_path(session.profile)
+    # Timeout is generous: the Device Code flow itself expires in
+    # ~15 minutes. We want to hold the lock until the poll resolves,
+    # not time out while the user is completing sign-in.
+    with exclusive_lock(lock_path, timeout=1200.0):
+        cached = poll_for_token(
+            device_code=session.device_code,
+            client_id=client_id,
+            tenant=tenant,
+            interval=session.interval_s,
+        )
+        store = get_token_store()
+        store.set(session.profile, cached.to_json().encode())
+    return cached
+
+
+# ---------------------------------------------------------------------
+# File-lock helpers
+# ---------------------------------------------------------------------
+
+
+def _login_lock_path(profile: str) -> Path:
+    """Sidecar lock file for cross-process login-flow serialisation.
+
+    Always file-system based (even when the token store uses keyring)
+    so the lock path is deterministic and OS-level, not process-local.
+    The file is created on demand; its contents are irrelevant.
+    """
+    path = DEFAULT_CACHE_DIR / profile / "login.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _probe_login_lock(path: Path) -> None:
+    """Non-blocking lock probe — raises `TokenStoreLockTimeoutError` if
+    another process currently holds the login-flow lock.
+
+    Used by `login_begin` to fail fast before making the /devicecode
+    round-trip. Acquires and immediately releases the lock (no side
+    effects on the winning caller).
+    """
+    with exclusive_lock(path, timeout=0.1):
+        pass
 
 
 # ---------------------------------------------------------------------

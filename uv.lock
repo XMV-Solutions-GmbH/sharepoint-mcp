@@ -613,16 +613,16 @@ wheels = [
 
 [[package]]
 name = "mcp-microsoft-graph-auth"
-version = "0.1.1"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "httpx" },
     { name = "keyring" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/53/3766371a74d217d1ef7ec3dbe95acf46b902c62c62ad3fa83c5a26d9f5d6/mcp_microsoft_graph_auth-0.1.1.tar.gz", hash = "sha256:7d41a67a9a8b70eba510505b86f4aaa24fed9df340a264a59a43e88a5b604d00", size = 98872, upload-time = "2026-05-08T18:55:38.83Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/15/1162e4ac811d81482a9078e903116b8dd39f34baecde5c47cf45b5903a93/mcp_microsoft_graph_auth-0.1.2.tar.gz", hash = "sha256:c8ea70229e2ad27fb3119d27b73986736354124270cc0c10534b75b8d6d7a149", size = 104198, upload-time = "2026-05-12T10:45:19.703Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/db/220759a47967637309b740831b1bd713a86be504021d717e579e3d877993/mcp_microsoft_graph_auth-0.1.1-py3-none-any.whl", hash = "sha256:557dcb3cd9d8a0cde917049d67f159d084149fc6552efd3156a659b49956dad8", size = 23859, upload-time = "2026-05-08T18:55:37.386Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/22/0df51a4ae4deb3ce3d5c3eb19c73774843f568fa6ef2897595e5a0eea8cc/mcp_microsoft_graph_auth-0.1.2-py3-none-any.whl", hash = "sha256:20cb4e62c7c2f9ac867d92c980addd3dfdb6af60d4048c79ebf6cd40b5c6a023", size = 27107, upload-time = "2026-05-12T10:45:18.649Z" },
 ]
 
 [[package]]
@@ -653,7 +653,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "keyring", specifier = ">=25" },
     { name = "mcp", specifier = ">=1.2" },
-    { name = "mcp-microsoft-graph-auth", specifier = ">=0.1.1" },
+    { name = "mcp-microsoft-graph-auth", specifier = ">=0.1.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
