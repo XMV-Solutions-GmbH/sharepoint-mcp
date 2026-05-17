@@ -70,7 +70,7 @@ def _mock_discard() -> None:
 
 @respx.mock
 def test_open_modify_save_full_chain(fake_token_store: None, isolated_registry_dir: Path) -> None:
-    """sp_open populates the registry; sp_save reads the entry, uses its
+    """sp_open_file populates the registry; sp_save_file reads the entry, uses its
     ETag for If-Match, succeeds, and removes the registry entry."""
     del fake_token_store
     _mock_open_calls(content=b"original-content")
@@ -101,7 +101,7 @@ def test_open_modify_save_full_chain(fake_token_store: None, isolated_registry_d
 
 @respx.mock
 def test_open_release_lifecycle(fake_token_store: None, isolated_registry_dir: Path) -> None:
-    """sp_open populates registry; sp_release calls discardCheckout
+    """sp_open_file populates registry; sp_release_file calls discardCheckout
     and removes the entry. No save call required."""
     del fake_token_store
     _mock_open_calls()
@@ -117,13 +117,13 @@ def test_open_release_lifecycle(fake_token_store: None, isolated_registry_dir: P
 
 
 # ---------------------------------------------------------------------
-# sp_status sees what sp_open writes
+# sp_status sees what sp_open_file writes
 # ---------------------------------------------------------------------
 
 
 @respx.mock
 def test_status_reflects_open(fake_token_store: None, isolated_registry_dir: Path) -> None:
-    """Cross-module: sp_open's registry write is visible to sp_status."""
+    """Cross-module: sp_open_file's registry write is visible to sp_status."""
     del fake_token_store
     assert status() == []  # nothing checked out initially
 

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_read — download a SharePoint file's content to a local temp file.
+"""sp_read_file — download a SharePoint file's content to a local temp file.
 
-Read-only. Does NOT acquire a checkout / lock — that's `sp_open`'s job.
+Read-only. Does NOT acquire a checkout / lock — that's `sp_open_file`'s job.
 The temp file is written to the OS temp directory, with the original
 file's extension preserved so editors / viewers can pick the right
 handler. The agent (or test) is responsible for deciding what to do
@@ -59,12 +59,12 @@ def read_file(
             for `profile`.
     """
     if not url or not url.strip():
-        raise ValueError("sp_read requires a non-empty url")
+        raise ValueError("sp_read_file requires a non-empty url")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
         raise ValueError(
-            f"sp_read needs a file URL, got a site/folder URL with no item path: {url!r}",
+            f"sp_read_file needs a file URL, got a site/folder URL with no item path: {url!r}",
         )
 
     token = get_token(profile)

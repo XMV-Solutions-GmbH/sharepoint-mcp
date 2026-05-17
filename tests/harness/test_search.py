@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_search — real Microsoft Graph against the harness sandbox.
+"""Harness tests for sp_search_files — real Microsoft Graph against the harness sandbox.
 
 Skipped when no harness credentials are present (same pattern as
 `test_auth_smoke.py`).
@@ -34,7 +34,7 @@ def _skip_if_no_harness() -> None:
         )
 
 
-def test_sp_search_returns_a_list_against_real_graph() -> None:
+def test_sp_search_files_returns_a_list_against_real_graph() -> None:
     """A search call against real Graph parses without exception."""
     _skip_if_no_harness()
     # Use a query that's specific enough not to flood with millions of hits,
@@ -46,7 +46,7 @@ def test_sp_search_returns_a_list_against_real_graph() -> None:
     assert isinstance(results, list)
 
 
-def test_sp_search_hit_shape_matches_documented_contract() -> None:
+def test_sp_search_files_hit_shape_matches_documented_contract() -> None:
     """Whatever Graph returns, our extractor produces the documented keys."""
     _skip_if_no_harness()
     # Broad query likely to return at least the user's own OneDrive root
@@ -60,10 +60,10 @@ def test_sp_search_hit_shape_matches_documented_contract() -> None:
         )
 
 
-def test_sp_search_empty_query_validation() -> None:
+def test_sp_search_files_empty_query_validation() -> None:
     """Validation kicks in before any Graph call — auth not required for this."""
     # No skip — this should work even without harness credentials,
-    # because the validation is local. But sp_search needs profile to
+    # because the validation is local. But sp_search_files needs profile to
     # pass; we use harness even if it doesn't exist (won't be reached).
     with pytest.raises(ValueError, match="non-empty query"):
         search("", profile=HARNESS_PROFILE)

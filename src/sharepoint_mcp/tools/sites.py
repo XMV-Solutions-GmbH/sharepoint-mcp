@@ -25,7 +25,7 @@ Returned dict shape per site (consistent across both tools):
 
 The `id` is the Graph composite ID (`hostname,siteCollectionId,webId`)
 that other Graph endpoints accept. Callers don't usually need it —
-the `web_url` is what they pass to `sp_list_folder` / `sp_search` etc. —
+the `web_url` is what they pass to `sp_list_folder` / `sp_search_files` etc. —
 but it's exposed for advanced use.
 """
 

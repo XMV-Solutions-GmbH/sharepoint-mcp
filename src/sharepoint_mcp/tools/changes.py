@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_changes — delta-query change tracking on a SharePoint drive (closes #51).
+"""sp_file_changes — delta-query change tracking on a SharePoint drive (closes #51).
 
 Microsoft Graph's delta endpoint returns the set of driveItems
 changed since a stored cursor:
@@ -73,7 +73,7 @@ def changes(
     `scope_url` is a SharePoint site URL — delta runs on the site's
     default drive root.
 
-    `since` is the opaque cursor from a previous `sp_changes` call,
+    `since` is the opaque cursor from a previous `sp_file_changes` call,
     or None for the initial sync (which returns the full item set).
 
     Returns `{"items": [...], "cursor": str}`. Always returns a new
@@ -87,11 +87,11 @@ def changes(
             again with `since=None` for a full re-sync.
     """
     if not scope_url or not scope_url.strip():
-        raise ValueError("sp_changes requires a non-empty scope_url")
+        raise ValueError("sp_file_changes requires a non-empty scope_url")
     hostname, site_path, item_path = parse_sharepoint_url(scope_url)
     if item_path:
         raise ValueError(
-            f"sp_changes expects a site URL, not a file/folder URL "
+            f"sp_file_changes expects a site URL, not a file/folder URL "
             f"(got {scope_url!r}; item path {item_path!r}). "
             "Folder-scoped delta is deferred to a follow-up.",
         )

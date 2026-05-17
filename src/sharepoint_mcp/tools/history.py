@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_history — list version history of a SharePoint file.
+"""sp_file_history — list version history of a SharePoint file.
 
 Read-only. Wraps `GET /drives/{id}/items/{id}/versions`.
 
@@ -15,7 +15,7 @@ version, and the version's size.
 `comment` is **NOT** populated — Microsoft Graph's `driveItemVersion`
 resource doesn't expose the per-version checkin comment via the v1.0
 endpoints. The comment landing in SharePoint's audit log on a
-sp_save call is real (visible in the SharePoint web UI's version
+sp_save_file call is real (visible in the SharePoint web UI's version
 history), but reading it back through Graph is a documented
 limitation. If/when Microsoft adds the field, we'll surface it here.
 """
@@ -47,7 +47,7 @@ def history(
     Returns up to `limit` versions, newest first. Each entry has:
 
     - `id` — version identifier (e.g. "3.0", "3.1") — pass to
-      `sp_get_version` to fetch that version's content.
+      `sp_get_file_version` to fetch that version's content.
     - `last_modified` — ISO datetime when the version was created.
     - `last_modified_by` — display-name or email of the user who
       created the version.
@@ -59,13 +59,13 @@ def history(
         sharepoint_mcp.auth.AuthRequiredError: no cached token.
     """
     if not url or not url.strip():
-        raise ValueError("sp_history requires a non-empty url")
+        raise ValueError("sp_file_history requires a non-empty url")
     if limit <= 0:
         raise ValueError(f"limit must be positive, got {limit}")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
-        raise ValueError(f"sp_history needs a file URL, got {url!r}")
+        raise ValueError(f"sp_file_history needs a file URL, got {url!r}")
 
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}

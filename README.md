@@ -24,10 +24,10 @@ Concretely, the agent gets these tools:
 
 | Tool | What the agent does | What ends up in SharePoint |
 |---|---|---|
-| `sp_search`, `sp_list_folder`, `sp_read` | finds and reads files | nothing changes |
-| `sp_open` | acquires a checkout lock + downloads | "checked out by *you*" appears for everyone else |
-| `sp_save` | uploads + checks in with a comment | a real new version with a real comment in the audit log |
-| `sp_release` | discards a checkout | lock released, no version created |
+| `sp_search_files`, `sp_list_folder`, `sp_read_file` | finds and reads files | nothing changes |
+| `sp_open_file` | acquires a checkout lock + downloads | "checked out by *you*" appears for everyone else |
+| `sp_save_file` | uploads + checks in with a comment | a real new version with a real comment in the audit log |
+| `sp_release_file` | discards a checkout | lock released, no version created |
 | `sp_status` | shows what's currently checked out by this agent | nothing changes |
 
 Every action is attributed to the human who signed in once via Microsoft's standard Device Code login. No service-account "robot" identity. No silent overwrites. No broken locks. Lock conflicts are reported as conflicts. ETag checks catch concurrent edits before they clobber.
@@ -81,7 +81,7 @@ In your project's `.mcp.json`:
 }
 ```
 
-Restart Claude Code. The agent now has `sp_search`, `sp_list_folder`, `sp_read`, `sp_status` available — **read-only by default**.
+Restart Claude Code. The agent now has `sp_search_files`, `sp_list_folder`, `sp_read_file`, `sp_status` available — **read-only by default**.
 
 ### 3. Enable writes (when you're ready)
 
@@ -97,20 +97,20 @@ Restart Claude Code. The agent now has `sp_search`, `sp_list_folder`, `sp_read`,
 }
 ```
 
-Now `sp_open`, `sp_save`, `sp_release` are also available.
+Now `sp_open_file`, `sp_save_file`, `sp_release_file` are also available.
 
 ### 4. Try it
 
 ```text
 You:    Find our latest ISO 27001 control A.5.1 policy in SharePoint.
-Agent:  [calls sp_search → finds it]
+Agent:  [calls sp_search_files → finds it]
         Found "iso27001-A.5.1.md" at https://contoso.sharepoint.com/...
 
 You:    Read it, suggest two improvements based on the new revision of the standard.
-Agent:  [calls sp_read → reads file → suggests in chat]
+Agent:  [calls sp_read_file → reads file → suggests in chat]
 
 You:    Apply them and save with a comment summarising the changes.
-Agent:  [calls sp_open → modifies → sp_save with comment]
+Agent:  [calls sp_open_file → modifies → sp_save_file with comment]
         Saved version 1.4. Comment recorded: "Tightened wording per ISO 27001:2022 to match new control objective; added cross-reference to A.5.2."
 ```
 
@@ -122,52 +122,52 @@ Each tool call gets a permission prompt in Claude Code (you can mark trusted one
 
 | Tool | Purpose |
 |---|---|
-| `sp_search(query, site?, folder?, file_type?, modified_after?)` | KQL-style search across SharePoint sites the user has access to. Returns hits with name, path, web URL, last-modified date, author. |
+| `sp_search_files(query, site?, folder?, file_type?, modified_after?)` | KQL-style search across SharePoint sites the user has access to. Returns hits with name, path, web URL, last-modified date, author. |
 | `sp_list_folder(url)` | List a SharePoint folder's children (files + sub-folders) with size, type, last-modified. URL is the human-readable web URL. |
-| `sp_read(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
+| `sp_read_file(url)` | Download a file's content to a local temp file with the original extension preserved. **Read-only — does NOT acquire a checkout.** |
 | `sp_status(verify=False)` | Show what files this agent currently has checked out, when, and where the local working copies are. With `verify=True`, additionally queries SharePoint to confirm the server-side lock state — adds `server_locked` (`true`/`false`/`null`) and `lock_holder` (display name) to each entry. Costs one Graph call per registry entry. |
 | `sp_sites(query?)` | Discover SharePoint sites the user can see. `query` is a free-text site-name search; omit to list all. Useful as the agent's starting point when no site URL is known yet. |
 | `sp_followed_sites()` | List sites the user has Followed in SharePoint — a curated "my SharePoint" entry point. Not available in service-principal mode (no signed-in user). |
 | `sp_drives(site_url)` | List the document libraries (drives) on a site — default Shared Documents plus Site Assets, Style Library, and any custom libraries. Most read/write tools accept URLs into any library transparently; `sp_drives` is the discovery step when the agent doesn't yet know which libraries exist. |
-| `sp_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
+| `sp_file_trash_list(site_url)` | List items in the SharePoint site's recycle bin (id, name, size, deleted_date_time, deleted_from_location, deleted_by). Read-only. *Uses Graph beta endpoint — see note below.* |
 | `sp_lists(site_url)` | List all SharePoint Lists on a site (id, name, display_name, web_url, description, template). |
 | `sp_list_columns(list_url)` | Schema of a SharePoint List — column definitions (name, type, required, hidden, etc.). `list_url` shape: `https://<host>/sites/<name>/Lists/<list-name>`. |
 | `sp_list_items(list_url, filter?, top?)` | List items in a SharePoint List with full fields expansion. `filter` is an optional OData expression like `"fields/Status eq 'Open'"`. |
 | `sp_get_item(list_url, item_id)` | Fetch a single SharePoint List item with all expanded fields. |
-| `sp_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope, link_web_url}`), and `inherited` flag. Read-only. |
-| `sp_share_list(url)` | List existing sharing links on a SharePoint file or folder — id, web_url (the share URL), type, scope, roles. Read-only. Use `sp_share_create` / `sp_share_revoke` for the write side. |
+| `sp_file_permissions(url)` | List who has access to a SharePoint file, folder, or site. Pass a site URL for site-level permissions or any item URL for that item's permissions. Returns each permission with id, roles (`read`/`write`/`owner`), grantee (`{type, display_name, email, link_type, link_scope, link_web_url}`), and `inherited` flag. Read-only. |
+| `sp_file_share_list(url)` | List existing sharing links on a SharePoint file or folder — id, web_url (the share URL), type, scope, roles. Read-only. Use `sp_file_share_create` / `sp_file_share_revoke` for the write side. |
 | `sp_pages_list(site_url)` | List all modern SharePoint Pages (Site Pages) on a site — id, name, title, web_url, description, page_layout, last_modified. |
 | `sp_page_read(page_url)` | Fetch a single SharePoint Page including its canvasLayout (sections, columns, web parts) as raw JSON. `page_url` shape: `https://<host>/sites/<name>/SitePages/<page>.aspx`. |
-| `sp_changes(scope_url, since?)` | Microsoft Graph delta query — returns items in the site's default drive that changed since the optional cursor. First call (no cursor) returns the full item set + an initial cursor. Subsequent calls with the cursor return only created/modified/deleted items since. Cursor is opaque — store it (typically in the agent's conversation memory) and pass it back. Stale cursor surfaces as 410 Gone; drop it and re-sync from scratch. |
+| `sp_file_changes(scope_url, since?)` | Microsoft Graph delta query — returns items in the site's default drive that changed since the optional cursor. First call (no cursor) returns the full item set + an initial cursor. Subsequent calls with the cursor return only created/modified/deleted items since. Cursor is opaque — store it (typically in the agent's conversation memory) and pass it back. Stale cursor surfaces as 410 Gone; drop it and re-sync from scratch. |
 
 #### Non-default libraries
 
-URLs into **non-default document libraries** (Site Assets, Style Library, custom libraries) work transparently across `sp_list_folder`, `sp_read`, `sp_open`, `sp_save`, `sp_publish`, etc. The resolver tries the default Shared Documents drive first; on a 404, it lists the site's drives, matches the URL's first path segment to a library name, and retries against that library. One extra Graph round-trip per first-look-up at a non-default library — acceptable cost for the convenience.
+URLs into **non-default document libraries** (Site Assets, Style Library, custom libraries) work transparently across `sp_list_folder`, `sp_read_file`, `sp_open_file`, `sp_save_file`, `sp_upload_new_file`, etc. The resolver tries the default Shared Documents drive first; on a 404, it lists the site's drives, matches the URL's first path segment to a library name, and retries against that library. One extra Graph round-trip per first-look-up at a non-default library — acceptable cost for the convenience.
 
 ### Write tools (opt-in via `SP_ALLOW_WRITES=true`)
 
 | Tool | Purpose |
 |---|---|
-| `sp_open(url)` | **Acquire a server-side checkout lock** + download the current content to a working-directory path. Other users see "checked out by *you*" until you save or release. Fails with a clear error if someone else already holds the lock. |
-| `sp_save(url, comment, version="minor"\|"major")` | Upload your changes + check the file back in with an audit comment + new version. **`comment` is required and must be non-empty** — describes what changed for the audit log. ETag round-trip catches "someone else changed the file underneath us" and refuses to clobber. |
-| `sp_release(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
-| `sp_open_many(urls)` | Bulk variant of `sp_open` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
-| `sp_save_many(operations)` | Bulk variant of `sp_save` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_many`. ETag round-trip applies per file. |
+| `sp_open_file(url)` | **Acquire a server-side checkout lock** + download the current content to a working-directory path. Other users see "checked out by *you*" until you save or release. Fails with a clear error if someone else already holds the lock. |
+| `sp_save_file(url, comment, version="minor"\|"major")` | Upload your changes + check the file back in with an audit comment + new version. **`comment` is required and must be non-empty** — describes what changed for the audit log. ETag round-trip catches "someone else changed the file underneath us" and refuses to clobber. |
+| `sp_release_file(url)` | Discard a pending checkout: drop the lock server-side and delete the local working copy. Use when you decide *not* to keep your edits. |
+| `sp_open_files(urls)` | Bulk variant of `sp_open_file` — acquires checkouts on multiple files in parallel (up to 4 concurrent Graph calls per Microsoft throttling guidance). Returns one result per URL: `{path, status: "ok"\|"error", local_path?, error?}`. Per-file failures don't abort the batch. Honors `Retry-After` on 429/503. |
+| `sp_save_files(operations)` | Bulk variant of `sp_save_file` — each op `{url, comment, version?}`. Same parallel/error-isolation semantics as `sp_open_files`. ETag round-trip applies per file. |
 | `sp_create_item(list_url, fields)` | Create a new item in a SharePoint List. `fields` is a dict of column-name -> value pairs (use `sp_list_columns` to inspect schema). |
 | `sp_update_item(list_url, item_id, fields)` | Patch fields on an existing List item. Only keys present in `fields` are changed. |
 | `sp_delete_item(list_url, item_id)` | Delete a List item — sends to recycle bin (recoverable for ~93 days). |
-| `sp_share_create(url, type="view", scope="organization", expires?, password?)` | Create a sharing link. **Conservative defaults**: `type="view"`, `scope="organization"`. The agent must explicitly pass `scope="anonymous"` to make a public link — that's the most common ISMS-audit finding, so we don't make it the default. `type="edit"` grants WRITE to anyone with the URL within scope. |
-| `sp_share_revoke(url, link_id)` | Revoke (delete) a sharing-link permission. After this call the share URL stops working. `link_id` comes from `sp_share_create` or `sp_share_list`. |
+| `sp_file_share_create(url, type="view", scope="organization", expires?, password?)` | Create a sharing link. **Conservative defaults**: `type="view"`, `scope="organization"`. The agent must explicitly pass `scope="anonymous"` to make a public link — that's the most common ISMS-audit finding, so we don't make it the default. `type="edit"` grants WRITE to anyone with the URL within scope. |
+| `sp_file_share_revoke(url, link_id)` | Revoke (delete) a sharing-link permission. After this call the share URL stops working. `link_id` comes from `sp_file_share_create` or `sp_file_share_list`. |
 
 #### Recycle bin: list-only, beta endpoint
 
-`sp_trash_list` calls Microsoft Graph's `/beta` endpoint. The site-level recycle-bin listing has not yet been promoted to v1.0; the beta endpoint is stable enough that SharePoint's own web UI / admin center rely on it, but the schema can change. We pin to the documented shape and will migrate to v1.0 when it lands.
+`sp_file_trash_list` calls Microsoft Graph's `/beta` endpoint. The site-level recycle-bin listing has not yet been promoted to v1.0; the beta endpoint is stable enough that SharePoint's own web UI / admin center rely on it, but the schema can change. We pin to the documented shape and will migrate to v1.0 when it lands.
 
-Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/restore` action for site-recycle-bin items (only on SharePoint Embedded `fileStorageContainer` recycle bins). Use the SharePoint web UI to restore individual items; we'll add `sp_trash_restore` once Microsoft surfaces the action or we add a SharePoint REST API fallback.
+Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/restore` action for site-recycle-bin items (only on SharePoint Embedded `fileStorageContainer` recycle bins). Use the SharePoint web UI to restore individual items; we'll add a restore tool once Microsoft surfaces the action or we add a SharePoint REST API fallback.
 
 #### Large files
 
-`sp_save` uses Microsoft Graph's [resumable upload session](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession) for files larger than **100 MB** (configurable via `SP_CHUNKED_UPLOAD_THRESHOLD_MB`). Files at-or-below the threshold use a single-shot `PUT /content` for a faster path. Microsoft caps single-shot at 250 MB; the resumable path supports up to 250 GB. Chunks are 5 MiB and retry on transient 5xx / connection errors with exponential backoff.
+`sp_save_file` uses Microsoft Graph's [resumable upload session](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession) for files larger than **100 MB** (configurable via `SP_CHUNKED_UPLOAD_THRESHOLD_MB`). Files at-or-below the threshold use a single-shot `PUT /content` for a faster path. Microsoft caps single-shot at 250 MB; the resumable path supports up to 250 GB. Chunks are 5 MiB and retry on transient 5xx / connection errors with exponential backoff.
 
 ### Authentication
 
@@ -218,7 +218,7 @@ Three layers of "don't accidentally damage anything":
 
 1. **Your MCP client (Claude Code) prompts before each tool call by default.** Read tools are flagged read-only; write tools are flagged destructive — you see the difference at the prompt.
 2. **Read-only by default at our server.** Without `SP_ALLOW_WRITES=true`, the write tools aren't even registered. The agent literally can't see them.
-3. **`sp_save` requires a non-empty audit comment.** The agent has to articulate intent, and that lands in the SharePoint audit log.
+3. **`sp_save_file` requires a non-empty audit comment.** The agent has to articulate intent, and that lands in the SharePoint audit log.
 
 The threat model is "your local OS account is trusted" — same as `~/.ssh/id_rsa`, `gh` tokens, `aws` config. The tool isn't designed to defend against host compromise; it's designed to keep audit trails honest under normal use.
 
@@ -227,8 +227,8 @@ The threat model is "your local OS account is trusted" — same as `~/.ssh/id_rs
 | Version | Status | Theme | Highlights |
 |---|---|---|---|
 | **v0.1** | ✅ released 2026-05-07 | Audit-preserving doc edits | The seven `sp_*` tools above, three-layer test harness, Trusted-Publisher PyPI release pipeline, branch-protected `main`. |
-| **v0.2** | ✅ released 2026-05-07 | Write-side polish | `sp_publish` (upload new file), `sp_history` + `sp_get_version` (version-history access), `sp_open_many` + `sp_save_many` (bulk operations with concurrency cap), `sp_status(verify=True)` server-side reconciliation, resumable uploads for files >100 MB (auto-switch), service-principal auth for unattended automation. |
-| **v0.3** | ✅ released 2026-05-07 | Broader SharePoint surface | Site discovery (`sp_sites` / `sp_subsites` / `sp_followed_sites`), multi-library support + `sp_drives`, SharePoint Lists CRUD, recycle-bin listing (`sp_trash_list`), permissions inspection (`sp_permissions`), sharing-link create/list/revoke (`sp_share_*`), modern Pages read/update (`sp_pages_list` / `sp_page_read` / `sp_page_update`), Graph delta-query change tracking (`sp_changes`). |
+| **v0.2** | ✅ released 2026-05-07 | Write-side polish | `sp_upload_new_file` (upload new file), `sp_file_history` + `sp_get_file_version` (version-history access), `sp_open_files` + `sp_save_files` (bulk operations with concurrency cap), `sp_status(verify=True)` server-side reconciliation, resumable uploads for files >100 MB (auto-switch), service-principal auth for unattended automation. |
+| **v0.3** | ✅ released 2026-05-07 | Broader SharePoint surface | Site discovery (`sp_sites` / `sp_subsites` / `sp_followed_sites`), multi-library support + `sp_drives`, SharePoint Lists CRUD, recycle-bin listing (`sp_file_trash_list`), permissions inspection (`sp_file_permissions`), sharing-link create/list/revoke (`sp_file_share_*`), modern Pages read/update (`sp_pages_list` / `sp_page_read` / `sp_page_update`), Graph delta-query change tracking (`sp_file_changes`). |
 | **v0.4** | 🤔 maybe | Admin functions | Site / library / permission administration, IF customer demand emerges. |
 | **v1.0** | 🎯 stability lock-in | "API stable, production-tested" | After v0.x has been used in real customer environments for ~3–6 months without breaking changes. Not "more features" — a **commitment that what you depend on today still works tomorrow.** |
 
@@ -262,7 +262,7 @@ uvx mcp-server-sharepoint login --profile acme
 uvx mcp-server-sharepoint login --profile globex
 ```
 
-Tools appear in Claude as `mcp__sharepoint-acme__sp_search` etc. Cross-tenant accidents don't happen because the tokens are namespaced.
+Tools appear in Claude as `mcp__sharepoint-acme__sp_search_files` etc. Cross-tenant accidents don't happen because the tokens are namespaced.
 
 ## BYO Entra app registration
 
@@ -311,15 +311,15 @@ uvx mcp-server-sharepoint login --profile <name>
 
 Someone else (or a previous instance of your own agent) has the file locked. Wait, or in the SharePoint web UI go to the library → file → "Discard check-out".
 
-### "File changed under us between sp_open and sp_save"
+### "File changed under us between sp_open_file and sp_save_file"
 
 Your agent had the file open, but someone else edited it before your save. Recover with:
 
 ```text
-sp_release(url)        # drop your stale working copy + lock
-sp_open(url)           # acquire fresh lock + content
+sp_release_file(url)        # drop your stale working copy + lock
+sp_open_file(url)           # acquire fresh lock + content
 # re-apply edits to the new content
-sp_save(url, comment="…", version="minor")
+sp_save_file(url, comment="…", version="minor")
 ```
 
 ### Linux: keyring fails / "Secret Service unavailable"
@@ -337,7 +337,7 @@ uvx mcp-server-sharepoint login --profile <name>
 uvx mcp-server-sharepoint     # restart the server
 ```
 
-In the agent, ask `sp_status` — you'll see anything that was checked out before the crash. For each, either resume work (working file is still on disk; `sp_save` works as normal) or drop it (`sp_release`).
+In the agent, ask `sp_status` — you'll see anything that was checked out before the crash. For each, either resume work (working file is still on disk; `sp_save_file` works as normal) or drop it (`sp_release_file`).
 
 The registry survives crashes; nothing is lost.
 

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_open_many / sp_save_many (#41).
+"""Harness tests for sp_open_files / sp_save_files (#41).
 
-Each run seeds 5 throwaway test files via sp_publish, exercises the
+Each run seeds 5 throwaway test files via sp_upload_new_file, exercises the
 bulk operations against them, and cleans up by removing the files
 through Microsoft Graph at the end. This is the closest we can get
 to a real-world batch (acceptance criteria: 5+ files in one bulk
@@ -131,7 +131,7 @@ def test_open_many_runs_concurrently_under_real_latency(
     seeded_files: list[str],
     cleanup_checkouts: None,
 ) -> None:
-    """Sequential 5x sp_open against real Graph would take ~2s+ at typical
+    """Sequential 5x sp_open_file against real Graph would take ~2s+ at typical
     round-trip latency. Bulk with concurrency=4 should land well under
     the sequential floor."""
     del cleanup_checkouts

@@ -3,7 +3,7 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Persistent registry of files currently checked out by this MCP profile.
 
-Tracks the local working copies created by `sp_open` so `sp_save` can
+Tracks the local working copies created by `sp_open_file` so `sp_save_file` can
 look up the corresponding ETag (for stale-write detection) and Graph
 ids without re-resolving from URL each time, and so `sp_status` can
 list them for the agent + the human.
@@ -14,7 +14,7 @@ leave a half-truncated registry.
 
 Server-side reconciliation (verifying that each entry is *still*
 checked out on the SharePoint side) is deferred to v0.2 — for v0.1
-we trust our local view, and `sp_save` catches divergence via the
+we trust our local view, and `sp_save_file` catches divergence via the
 ETag round-trip.
 """
 
@@ -31,7 +31,7 @@ from pathlib import Path
 DEFAULT_REGISTRY_DIR = Path.home() / ".cache" / "sharepoint-mcp"
 
 # Process-wide lock for registry mutations. Bulk operations
-# (sp_open_many / sp_save_many) run multiple `add` / `remove`
+# (sp_open_files / sp_save_files) run multiple `add` / `remove`
 # concurrently, and `add` does a non-atomic read-modify-write
 # (list_all → mutate → _write). Without this lock, two concurrent
 # adds can stomp each other and lose entries. The lock is held only
@@ -43,13 +43,13 @@ _REGISTRY_LOCK = threading.Lock()
 class CheckedOutEntry:
     """One row in the checked-out registry."""
 
-    path: str  # original SharePoint URL passed to sp_open
+    path: str  # original SharePoint URL passed to sp_open_file
     site_id: str
     drive_id: str
     item_id: str
     local_path: str  # working-copy file on disk
-    etag: str  # If-Match header for sp_save's stale-write check
-    since: float  # epoch seconds when sp_open succeeded
+    etag: str  # If-Match header for sp_save_file's stale-write check
+    since: float  # epoch seconds when sp_open_file succeeded
 
 
 class CheckoutRegistry:

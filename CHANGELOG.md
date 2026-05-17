@@ -6,6 +6,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.0] — Unreleased
+
+### Changed (breaking) — Tool renames
+
+16 MCP tool functions have been renamed for clarity and consistency.
+Update any `.mcp.json` "always allow" entries, saved prompts, or
+scripts that reference the old names.
+
+| Old name | New name |
+|---|---|
+| `sp_read` | `sp_read_file` |
+| `sp_open` | `sp_open_file` |
+| `sp_open_many` | `sp_open_files` |
+| `sp_save` | `sp_save_file` |
+| `sp_save_many` | `sp_save_files` |
+| `sp_release` | `sp_release_file` |
+| `sp_history` | `sp_file_history` |
+| `sp_get_version` | `sp_get_file_version` |
+| `sp_changes` | `sp_file_changes` |
+| `sp_search` | `sp_search_files` |
+| `sp_permissions` | `sp_file_permissions` |
+| `sp_share_create` | `sp_file_share_create` |
+| `sp_share_list` | `sp_file_share_list` |
+| `sp_share_revoke` | `sp_file_share_revoke` |
+| `sp_trash_list` | `sp_file_trash_list` |
+| `sp_publish` | `sp_upload_new_file` |
+
+Tools not renamed (already had unambiguous names): `sp_list_folder`,
+`sp_create_folder`, `sp_delete_file`, `sp_move_file`, `sp_copy_file`.
+
+---
+
 ## [Unreleased]
 
 ### Changed (breaking)

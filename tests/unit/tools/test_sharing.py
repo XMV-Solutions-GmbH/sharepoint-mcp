@@ -204,7 +204,7 @@ def test_share_create_rejects_unknown_scope(scope_arg: str) -> None:
 
 
 def test_share_create_rejects_site_url_without_item() -> None:
-    """sp_share_create requires a file/folder URL, not a site URL."""
+    """sp_file_share_create requires a file/folder URL, not a site URL."""
     with pytest.raises(ValueError, match="file/folder URL"):
         share_create(SITE_URL)
 
@@ -417,7 +417,7 @@ def test_normalise_create_response_carries_prevents_download() -> None:
 
 
 def test_normalise_existing_link_pulls_web_url_from_grantee() -> None:
-    """sp_share_list relies on sp_permissions including link_web_url in
+    """sp_file_share_list relies on sp_file_permissions including link_web_url in
     its grantee normalisation."""
     out = _normalise_existing_link(
         {

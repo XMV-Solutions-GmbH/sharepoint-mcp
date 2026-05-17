@@ -5,7 +5,7 @@
 
 Mirrors sp_delete_item (list items) for drive files. Graph's DELETE on a
 driveItem sends it to the site recycle bin, matching SharePoint's native
-behaviour — recoverable for ~93 days via sp_trash_list.
+behaviour — recoverable for ~93 days via sp_file_trash_list.
 
 Graph API:
     DELETE /drives/{drive_id}/items/{item_id}

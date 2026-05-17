@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_trash_list (#50, partial).
+"""Harness tests for sp_file_trash_list (#50, partial).
 
 `sp_trash_restore` is not implemented because Microsoft Graph's
 beta site recycle-bin endpoint doesn't expose a restore action

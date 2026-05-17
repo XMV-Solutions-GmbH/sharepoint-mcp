@@ -79,41 +79,41 @@ def test_register_read_tools_adds_all_read_tools() -> None:
     register_read_tools(server)
     names = _list_tool_names(server)
     assert names == {
-        "sp_search",
+        "sp_search_files",
         "sp_list_folder",
-        "sp_read",
+        "sp_read_file",
         "sp_status",
-        "sp_history",
-        "sp_get_version",
+        "sp_file_history",
+        "sp_get_file_version",
         "sp_sites",
         "sp_followed_sites",
         "sp_drives",
-        "sp_trash_list",
+        "sp_file_trash_list",
         "sp_lists",
         "sp_list_columns",
         "sp_list_items",
         "sp_get_item",
-        "sp_permissions",
-        "sp_share_list",
+        "sp_file_permissions",
+        "sp_file_share_list",
         "sp_pages_list",
         "sp_page_read",
-        "sp_changes",
+        "sp_file_changes",
     }
 
 
-def test_register_write_tools_adds_sp_open() -> None:
+def test_register_write_tools_adds_sp_open_file() -> None:
     server = FastMCP("test-with-writes")
     register_read_tools(server)
     register_write_tools(server)
     names = _list_tool_names(server)
-    assert "sp_open" in names
+    assert "sp_open_file" in names
 
 
 def test_register_write_tools_adds_bulk_tools() -> None:
     server = FastMCP("test-with-writes")
     register_write_tools(server)
     names = _list_tool_names(server)
-    assert {"sp_open_many", "sp_save_many"}.issubset(names)
+    assert {"sp_open_files", "sp_save_files"}.issubset(names)
 
 
 def test_read_tools_have_readonly_annotation() -> None:
@@ -129,11 +129,11 @@ def test_read_tools_have_readonly_annotation() -> None:
 
 
 def test_write_tool_has_destructive_annotations_set() -> None:
-    """sp_open is non-destructive (creates a lock, doesn't damage data) but
+    """sp_open_file is non-destructive (creates a lock, doesn't damage data) but
     is NOT read-only — the annotation pair distinguishes."""
     server = FastMCP("test-writes")
     register_write_tools(server)
-    [open_tool] = [t for t in asyncio.run(server.list_tools()) if t.name == "sp_open"]
+    [open_tool] = [t for t in asyncio.run(server.list_tools()) if t.name == "sp_open_file"]
     assert open_tool.annotations is not None
     assert open_tool.annotations.readOnlyHint is False
     assert open_tool.annotations.destructiveHint is False  # acquires a lock, not destruction
@@ -153,8 +153,8 @@ def test_module_level_server_omits_writes_in_explicit_readonly_mode(
 
     server = _build_server()
     names = _list_tool_names(server)
-    assert "sp_open" not in names
-    assert "sp_search" in names
+    assert "sp_open_file" not in names
+    assert "sp_search_files" in names
 
 
 def test_module_level_server_refuses_when_env_unset(
@@ -187,5 +187,5 @@ def test_module_level_server_includes_writes_when_env_set(
 
     server = _build_server()
     names = _list_tool_names(server)
-    assert "sp_open" in names
-    assert "sp_search" in names
+    assert "sp_open_file" in names
+    assert "sp_search_files" in names

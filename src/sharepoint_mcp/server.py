@@ -9,7 +9,7 @@ prompt — read-only tools get a different treatment from destructive
 ones. The annotations are part of our security story: if we lie
 here, the client can't make sensible safety decisions.
 
-**Read-only by default.** Write tools (sp_open, sp_save, sp_release)
+**Read-only by default.** Write tools (sp_open_file, sp_save_file, sp_release_file)
 are only registered when `SP_ALLOW_WRITES=true` (or =1 / =yes / =on)
 is set in the environment. This is belt-and-suspenders to Claude
 Code's per-call permission prompts: if you don't even register the
@@ -188,7 +188,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "modified_after (ISO date)."
         ),
     )
-    def sp_search(
+    def sp_search_files(
         query: str,
         site: str | None = None,
         folder: str | None = None,
@@ -216,7 +216,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         description=(
             "List the immediate children of a SharePoint or OneDrive folder. "
             "`url` is the folder's human-readable web URL (e.g. from a previous "
-            "sp_search hit's web_url, or the SharePoint web UI). Returns each "
+            "sp_search_files hit's web_url, or the SharePoint web UI). Returns each "
             "child with name, type ('folder' or 'file'), size, last-modified date, "
             "and webUrl. Read-only — does not modify SharePoint state."
         ),
@@ -234,11 +234,11 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         description=(
             "Download a SharePoint file's content to a local temp file. Returns the "
             "absolute path of the temp file with the original extension preserved. "
-            "Read-only — does NOT acquire a checkout/lock; use sp_open for that. "
-            "`url` is the file's human-readable web URL (e.g. from sp_search hits)."
+            "Read-only — does NOT acquire a checkout/lock; use sp_open_file for that. "
+            "`url` is the file's human-readable web URL (e.g. from sp_search_files hits)."
         ),
     )
-    def sp_read(url: str) -> str:
+    def sp_read_file(url: str) -> str:
         return _do_read(url, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -250,12 +250,12 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         ),
         description=(
             "List the files this MCP profile currently has checked out (acquired via "
-            "sp_open). Returns each entry's original path, when checkout happened, "
+            "sp_open_file). Returns each entry's original path, when checkout happened, "
             "and the local working-copy path. Read-only. With verify=True, "
             "additionally queries SharePoint to confirm the server-side lock state "
             "(server_locked + lock_holder fields); costs one Graph call per "
             "registry entry. Default verify=False is sub-second, registry-only — "
-            "sp_save's ETag round-trip catches divergence at write time."
+            "sp_save_file's ETag round-trip catches divergence at write time."
         ),
     )
     def sp_status(verify: bool = False) -> list[dict[str, Any]]:
@@ -270,14 +270,14 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         ),
         description=(
             "List a SharePoint file's version history. Returns up to `limit` "
-            "versions newest-first, each with id (use with sp_get_version), "
+            "versions newest-first, each with id (use with sp_get_file_version), "
             "last_modified, last_modified_by (display name or email), and size. "
             "Read-only. NOTE: per-version comments aren't currently exposed via "
             "Microsoft Graph v1.0 — they land in SharePoint's web UI version "
             "history but not in this response shape."
         ),
     )
-    def sp_history(url: str, limit: int = 20) -> list[dict[str, Any]]:
+    def sp_file_history(url: str, limit: int = 20) -> list[dict[str, Any]]:
         return _do_history(url, limit=limit, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -397,7 +397,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "a full re-sync. Read-only."
         ),
     )
-    def sp_changes(scope_url: str, since: str | None = None) -> dict[str, Any]:
+    def sp_file_changes(scope_url: str, since: str | None = None) -> dict[str, Any]:
         return _do_changes(scope_url, since=since, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -442,17 +442,17 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         ),
         description=(
             "List existing **sharing links** on a SharePoint file or folder. "
-            "Each entry: id (use with sp_share_revoke), web_url (the share "
+            "Each entry: id (use with sp_file_share_revoke), web_url (the share "
             "URL), type (view/edit/embed/blocksDownload), scope (organization"
             "/anonymous/users), roles, expiration, has_password. "
-            "Read-only — does not create or revoke. Use sp_share_create to "
-            "make a new link, sp_share_revoke to remove one. "
+            "Read-only — does not create or revoke. Use sp_file_share_create to "
+            "make a new link, sp_file_share_revoke to remove one. "
             "SCOPE: only sharing-link permissions. For ALL access grants "
             "(direct user/group assignments, inherited site permissions, "
-            "plus sharing links) use sp_permissions instead."
+            "plus sharing links) use sp_file_permissions instead."
         ),
     )
-    def sp_share_list(url: str) -> list[dict[str, Any]]:
+    def sp_file_share_list(url: str) -> list[dict[str, Any]]:
         return _do_share_list(url, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -473,11 +473,11 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "suggesting changes or sharing links. "
             "SCOPE: all permission grants — direct user/group assignments, "
             "inherited site permissions, AND sharing links. To list only "
-            "sharing links (and get their `id` for sp_share_revoke), use "
-            "sp_share_list instead."
+            "sharing links (and get their `id` for sp_file_share_revoke), use "
+            "sp_file_share_list instead."
         ),
     )
-    def sp_permissions(url: str) -> list[dict[str, Any]]:
+    def sp_file_permissions(url: str) -> list[dict[str, Any]]:
         return _do_permissions(url, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -499,7 +499,7 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
             "migrate when v1.0 lands."
         ),
     )
-    def sp_trash_list(site_url: str, limit: int = 200) -> list[dict[str, Any]]:
+    def sp_file_trash_list(site_url: str, limit: int = 200) -> list[dict[str, Any]]:
         return _do_trash_list(site_url, limit=limit, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -550,12 +550,12 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
         ),
         description=(
             "Download a specific historical version of a SharePoint file to a "
-            "local temp file. Returns the absolute path. Use sp_history first to "
+            "local temp file. Returns the absolute path. Use sp_file_history first to "
             "find the version_id you want. Read-only — does NOT acquire a "
             "checkout, does NOT modify SharePoint state."
         ),
     )
-    def sp_get_version(url: str, version_id: str) -> str:
+    def sp_get_file_version(url: str, version_id: str) -> str:
         return _do_get_version(url, version_id, profile=_get_profile())
 
 
@@ -578,12 +578,12 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
         description=(
             "Acquire a server-side checkout lock on a SharePoint file and download "
             "its current content to a local working-copy path. Other users see the "
-            "file as 'checked out by you' until you call sp_save or sp_release. "
+            "file as 'checked out by you' until you call sp_save_file or sp_release_file. "
             "Returns the local working-copy path. Fails with a clear error if the "
             "file is already checked out by another user."
         ),
     )
-    def sp_open(url: str) -> str:
+    def sp_open_file(url: str) -> str:
         return _do_open(url, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -599,13 +599,13 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "creating a new version (minor by default, or major if version='major'). "
             "Releases the server-side checkout lock. `comment` is REQUIRED and goes "
             "into the SharePoint audit trail — describe what changed. Detects "
-            "stale-write conflicts (file changed by someone else between sp_open "
-            "and sp_save) via ETag round-trip and raises a clear error so the "
+            "stale-write conflicts (file changed by someone else between sp_open_file "
+            "and sp_save_file) via ETag round-trip and raises a clear error so the "
             "agent can re-open and reconcile. Returns the new version's id, etag, "
             "and webUrl."
         ),
     )
-    def sp_save(url: str, comment: str, version: str = "minor") -> dict[str, Any]:
+    def sp_save_file(url: str, comment: str, version: str = "minor") -> dict[str, Any]:
         if version not in ("minor", "major"):
             raise ValueError(f"version must be 'minor' or 'major', got {version!r}")
         return _do_save(
@@ -628,10 +628,10 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "the server-side lock, deletes the local working-copy file, and "
             "removes the registry entry. Idempotent: silently no-ops when nothing "
             "is checked out for the given url. Use this when you decide not to "
-            "keep edits made after sp_open."
+            "keep edits made after sp_open_file."
         ),
     )
-    def sp_release(url: str) -> None:
+    def sp_release_file(url: str) -> None:
         _do_release(url, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -646,13 +646,13 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "Upload a brand-new local file as a new document in a SharePoint folder. "
             "Use for the 'draft + promote' workflow: agent drafts locally, then "
             "publishes to SharePoint as a fresh file. REFUSES if the target path "
-            "already exists — use sp_open + sp_save to edit existing files (gives "
+            "already exists — use sp_open_file + sp_save_file to edit existing files (gives "
             "proper audit comment + version history). `name` defaults to the local "
             "file's basename; override to publish under a different filename. "
             "Returns the new driveItem's webUrl, etag, size, last_modified."
         ),
     )
-    def sp_publish(
+    def sp_upload_new_file(
         local_path: str,
         target_folder_url: str,
         name: str | None = None,
@@ -681,7 +681,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "yet are created in one call (recursive mkdir semantics). Existing "
             "folders are silently skipped, making the operation idempotent. "
             "Returns {created, already_existed, web_url}. "
-            "Use this BEFORE sp_publish when the target "
+            "Use this BEFORE sp_upload_new_file when the target "
             "folder doesn't exist yet. Requires SP_ALLOW_WRITES=true."
         ),
     )
@@ -703,12 +703,12 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "{path, status='ok', local_path} on success, "
             "{path, status='error', error} on failure. Per-file failures do NOT "
             "abort the rest — caller decides whether to continue or rollback "
-            "(via sp_release on the successful entries). Use when an agent has "
+            "(via sp_release_file on the successful entries). Use when an agent has "
             "to edit a known set of files and wants the round-trip latency "
             "amortised across them."
         ),
     )
-    def sp_open_many(urls: list[str]) -> list[dict[str, Any]]:
+    def sp_open_files(urls: list[str]) -> list[dict[str, Any]]:
         return _do_open_many(urls, profile=_get_profile())
 
     @mcp_instance.tool(
@@ -730,7 +730,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "for stale-write detection still applies per file."
         ),
     )
-    def sp_save_many(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def sp_save_files(operations: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # Validation of per-op shape happens inside save_many.
         return _do_save_many(
             operations,  # type: ignore[arg-type]
@@ -786,7 +786,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
         description=(
             "Delete a SharePoint List item. SharePoint sends it to the "
             "site recycle bin (default behaviour for DELETE on listItem) — "
-            "use sp_trash_list to find it for ~93 days afterwards. "
+            "use sp_file_trash_list to find it for ~93 days afterwards. "
             "list_url shape: https://<host>/sites/<name>/Lists/<list-name>."
         ),
     )
@@ -804,7 +804,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
         description=(
             "Delete a file or folder in a SharePoint document library "
             "(drive item). SharePoint sends it to the site recycle bin — "
-            "recoverable for ~93 days via sp_trash_list. "
+            "recoverable for ~93 days via sp_file_trash_list. "
             "Does NOT hard-delete. "
             "site_url: https://<host>/sites/<name>. "
             "path: drive-relative path, e.g. '2026/Q2/report.md'."
@@ -878,7 +878,7 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
             "a discoverable access path that persists until revoked."
         ),
     )
-    def sp_share_create(
+    def sp_file_share_create(
         url: str,
         type: str = "view",
         scope: str = "organization",
@@ -905,11 +905,11 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
         description=(
             "Revoke (delete) a sharing-link permission. After this call the "
             "share URL stops working. `link_id` is the permission id from "
-            "sp_share_create or sp_share_list. Idempotent: re-revoking an "
+            "sp_file_share_create or sp_file_share_list. Idempotent: re-revoking an "
             "already-revoked link is a 404 from Graph (we propagate)."
         ),
     )
-    def sp_share_revoke(url: str, link_id: str) -> None:
+    def sp_file_share_revoke(url: str, link_id: str) -> None:
         _do_share_revoke(url, link_id, profile=_get_profile())
 
 

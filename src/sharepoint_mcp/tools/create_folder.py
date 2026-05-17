@@ -3,7 +3,7 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """sp_create_folder — create a folder hierarchy in a SharePoint document library.
 
-Complementary to the checkout/checkin lifecycle: sp_open/sp_save require an
+Complementary to the checkout/checkin lifecycle: sp_open_file/sp_save_file require an
 existing item to check out. This tool creates new folders where none exist yet.
 
 Graph API: one POST per segment that doesn't exist yet:
