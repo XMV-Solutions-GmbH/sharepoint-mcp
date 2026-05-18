@@ -75,9 +75,7 @@ def _mock_item(
 
 
 def _mock_content(content: bytes) -> None:
-    respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(
-        content=content
-    )
+    respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(content=content)
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +114,9 @@ def test_download_binary_sends_bearer(store_with_fresh_token: None) -> None:
     del store_with_fresh_token
     _mock_site()
     _mock_item()
-    content_route = respx.get(
-        f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content"
-    ).respond(content=b"abc")
+    content_route = respx.get(f"{GRAPH_BASE}/drives/{DRIVE_ID}/items/{ITEM_ID}/content").respond(
+        content=b"abc"
+    )
 
     download_binary(f"https://{SITE_HOST}{SITE_PATH}/Shared Documents/photo.jpg")
     assert content_route.calls.last.request.headers.get("authorization") == "Bearer AT-test"
