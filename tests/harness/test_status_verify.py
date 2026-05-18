@@ -58,7 +58,7 @@ def test_status_verify_reports_server_locked_after_open(clean_registry: None) ->
         # Either definitively locked, or "unknown" if SharePoint
         # surfaces a transient quirk; we will not accept False.
         assert entry["server_locked"] in (True, None), (
-            f"Expected lock to be visible to SharePoint after sp_open, "
+            f"Expected lock to be visible to SharePoint after sp_open_file, "
             f"got server_locked={entry['server_locked']!r}, "
             f"lock_holder={entry.get('lock_holder')!r}"
         )

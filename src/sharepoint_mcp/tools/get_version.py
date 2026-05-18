@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_get_version — download a specific historical version of a file.
+"""sp_get_file_version — download a specific historical version of a file.
 
 Read-only. Wraps `GET /drives/{id}/items/{id}/versions/{version-id}/content`.
 
-Same overall shape as `sp_read` (writes the bytes to a temp file with
+Same overall shape as `sp_read_file` (writes the bytes to a temp file with
 the original extension preserved, returns the path) but addressed by
-version-id instead of "current". Use `sp_history` first to discover
+version-id instead of "current". Use `sp_file_history` first to discover
 which version-id to fetch.
 
 Three Graph calls per invocation: site lookup → driveItem lookup →
@@ -43,7 +43,7 @@ def get_version(
 ) -> str:
     """Download a specific historical version's content. Return local temp path.
 
-    `version_id` is the id from `sp_history`'s response (e.g. "3.0").
+    `version_id` is the id from `sp_file_history`'s response (e.g. "3.0").
     The downloaded bytes are written to a temp file with the original
     file's extension preserved, suffixed with `_v<version-id>` to make
     it obvious which version it is when multiple are downloaded.
@@ -55,13 +55,13 @@ def get_version(
         sharepoint_mcp.auth.AuthRequiredError: no cached token.
     """
     if not url or not url.strip():
-        raise ValueError("sp_get_version requires a non-empty url")
+        raise ValueError("sp_get_file_version requires a non-empty url")
     if not version_id or not version_id.strip():
-        raise ValueError("sp_get_version requires a non-empty version_id")
+        raise ValueError("sp_get_file_version requires a non-empty version_id")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
-        raise ValueError(f"sp_get_version needs a file URL, got {url!r}")
+        raise ValueError(f"sp_get_file_version needs a file URL, got {url!r}")
 
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}

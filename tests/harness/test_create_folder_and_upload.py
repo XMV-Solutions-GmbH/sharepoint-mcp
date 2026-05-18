@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_create_folder (and its integration with sp_publish).
+"""Harness tests for sp_create_folder (and its integration with sp_upload_new_file).
 
 These tests were absent in v0.6.0 — that omission allowed a URL bug in
 sp_create_folder (missing `:` before `/children` in path-based Graph URLs) to
@@ -124,7 +124,7 @@ def test_create_folder_partial_pre_existence(harness_test_root: str) -> None:
 
 
 # ---------------------------------------------------------------------
-# sp_create_folder + sp_publish integration — real Graph API
+# sp_create_folder + sp_upload_new_file integration — real Graph API
 # ---------------------------------------------------------------------
 
 
@@ -158,5 +158,5 @@ def test_publish_refuses_overwrite_in_created_folder(
     publish(str(src), folder_url, profile=HARNESS_PROFILE)
 
     src.write_text("second (must not land)", encoding="utf-8")
-    with pytest.raises(FileExistsError, match="sp_open"):
+    with pytest.raises(FileExistsError, match="sp_open_file"):
         publish(str(src), folder_url, profile=HARNESS_PROFILE)

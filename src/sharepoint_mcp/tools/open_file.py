@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_open — checkout a SharePoint file and download its content.
+"""sp_open_file — checkout a SharePoint file and download its content.
 
 Acquires a server-side lock via `POST /drives/{id}/items/{id}/checkout`,
 downloads the current content into a working-directory path, and
-registers the entry in `CheckoutRegistry` so `sp_save` can find the
-ETag for stale-write detection and `sp_release` knows what to discard.
+registers the entry in `CheckoutRegistry` so `sp_save_file` can find the
+ETag for stale-write detection and `sp_release_file` knows what to discard.
 
 Working-copy layout: `<base_dir>/<profile>/working/<item-id>/<filename>`.
 The per-item-id subfolder prevents name collisions between checkouts
@@ -60,13 +60,13 @@ def open_file(
     Side effects (visible to other SharePoint users):
 
     1. Server-side checkout lock acquired (others see "checked out by
-       <test-user>" until `sp_release` or `sp_save` is called).
+       <test-user>" until `sp_release_file` or `sp_save_file` is called).
 
     Side effects (local):
 
     2. File content written to
        `<base_dir>/<profile>/working/<item-id>/<filename>`.
-    3. `CheckoutRegistry` entry created so subsequent `sp_save` knows
+    3. `CheckoutRegistry` entry created so subsequent `sp_save_file` knows
        which item-id, drive-id, and ETag to use.
 
     Raises:
@@ -77,11 +77,11 @@ def open_file(
         sharepoint_mcp.auth.AuthRequiredError: no cached token for `profile`.
     """
     if not url or not url.strip():
-        raise ValueError("sp_open requires a non-empty url")
+        raise ValueError("sp_open_file requires a non-empty url")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
-        raise ValueError(f"sp_open needs a file URL, got {url!r}")
+        raise ValueError(f"sp_open_file needs a file URL, got {url!r}")
 
     resolved_base = base_dir if base_dir is not None else _registry_module.DEFAULT_REGISTRY_DIR
     token = get_token(profile)

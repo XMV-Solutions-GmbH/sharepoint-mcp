@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_search — search SharePoint document libraries via Microsoft Graph search.
+"""sp_search_files — search SharePoint document libraries via Microsoft Graph search.
 
 Wraps `POST /search/query` for `entityTypes: ["driveItem"]`. Read-only,
 idempotent. Filter parameters (site / folder / file_type /
@@ -50,7 +50,7 @@ def search(
     exists for `profile`.
     """
     if not query or not query.strip():
-        raise ValueError("sp_search requires a non-empty query")
+        raise ValueError("sp_search_files requires a non-empty query")
     if limit <= 0:
         raise ValueError(f"limit must be positive, got {limit}")
 

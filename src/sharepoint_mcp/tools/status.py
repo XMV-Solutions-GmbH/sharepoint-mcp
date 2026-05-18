@@ -7,7 +7,7 @@ Read-only. Two modes:
 
 - `verify=False` (default): returns the local view from the persistent
   CheckoutRegistry only. Sub-second, no Graph calls. Sufficient for
-  most use cases — sp_save's ETag round-trip catches divergence at
+  most use cases — sp_save_file's ETag round-trip catches divergence at
   the moment that actually matters.
 - `verify=True`: for each registry entry, queries Microsoft Graph
   for the SharePoint listItem's `CheckoutUser` field to confirm the
@@ -42,7 +42,7 @@ def status(
     """Return one dict per currently-checked-out file under this profile.
 
     With `verify=False` (default), each entry has `path` (original
-    SharePoint URL), `since` (ISO datetime UTC of when sp_open
+    SharePoint URL), `since` (ISO datetime UTC of when sp_open_file
     succeeded), and `local_path`. Empty list when nothing is open.
 
     With `verify=True`, each entry additionally has:

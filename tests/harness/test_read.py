@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_read against the harness sandbox.
+"""Harness tests for sp_read_file against the harness sandbox.
 
 Skipped when no harness credentials are present.
 """
@@ -31,7 +31,7 @@ def _skip_if_no_harness() -> None:
         )
 
 
-def test_sp_read_downloads_seed_readme() -> None:
+def test_sp_read_file_downloads_seed_readme() -> None:
     """The README.md seed file uploaded during harness setup is readable."""
     _skip_if_no_harness()
     path = read_file(HARNESS_README_URL, profile=HARNESS_PROFILE)
@@ -43,7 +43,7 @@ def test_sp_read_downloads_seed_readme() -> None:
         Path(path).unlink(missing_ok=True)
 
 
-def test_sp_read_downloads_subfolder_file() -> None:
+def test_sp_read_file_downloads_subfolder_file() -> None:
     """File in a sub-folder works (drive-root:/folder/file:/content path shape)."""
     _skip_if_no_harness()
     path = read_file(HARNESS_POLICY_URL, profile=HARNESS_PROFILE)
@@ -54,6 +54,6 @@ def test_sp_read_downloads_subfolder_file() -> None:
         Path(path).unlink(missing_ok=True)
 
 
-def test_sp_read_validation_does_not_need_harness() -> None:
+def test_sp_read_file_validation_does_not_need_harness() -> None:
     with pytest.raises(ValueError, match="non-empty url"):
         read_file("", profile=HARNESS_PROFILE)

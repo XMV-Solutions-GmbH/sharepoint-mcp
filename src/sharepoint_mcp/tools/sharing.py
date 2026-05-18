@@ -3,10 +3,10 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Sharing-link tools (closes #47).
 
-- `sp_share_list(url)` — list existing sharing links on an item
-- `sp_share_create(url, type, scope, expires=None, password=None)` —
+- `sp_file_share_list(url)` — list existing sharing links on an item
+- `sp_file_share_create(url, type, scope, expires=None, password=None)` —
   create a sharing link, returns the share URL
-- `sp_share_revoke(url, link_id)` — delete a sharing-link permission
+- `sp_file_share_revoke(url, link_id)` — delete a sharing-link permission
 
 **Security model.** Sharing links create a discoverable access path
 on the URL itself: anyone who learns the URL can open the file
@@ -19,10 +19,10 @@ document"), so:
 - The tool description warns the agent that anonymous + edit is the
   worst combination and should only happen on explicit user request.
 - All three tools are gated by `SP_ALLOW_WRITES` at the server layer
-  (yes including `sp_share_list` — it doesn't mutate but it's
+  (yes including `sp_file_share_list` — it doesn't mutate but it's
   thematically grouped with the dangerous siblings, and the agent
   shouldn't be using it without writes-enabled permission anyway).
-  Actually no: `sp_share_list` is read-only. It stays in the read
+  Actually no: `sp_file_share_list` is read-only. It stays in the read
   bucket. Only create + revoke are gated.
 
 Wire shape for sharing-link create response (Microsoft Graph
@@ -82,18 +82,18 @@ def share_list(
 ) -> list[dict[str, Any]]:
     """List existing sharing links on a SharePoint file or folder.
 
-    This is equivalent to `sp_permissions(url)` filtered to entries
+    This is equivalent to `sp_file_permissions(url)` filtered to entries
     whose grantee is a sharing link. Returned shape matches what
-    `sp_share_create` produces, so callers can correlate.
+    `sp_file_share_create` produces, so callers can correlate.
 
     Returns an empty list when no sharing links exist on the item.
     """
     if not url or not url.strip():
-        raise ValueError("sp_share_list requires a non-empty url")
+        raise ValueError("sp_file_share_list requires a non-empty url")
     _, _, item_path = parse_sharepoint_url(url)
     if not item_path:
         raise ValueError(
-            f"sp_share_list requires a file/folder URL; got a site URL: {url!r}",
+            f"sp_file_share_list requires a file/folder URL; got a site URL: {url!r}",
         )
     # Delegate the underlying permissions fetch + URL resolution; then
     # filter and re-shape.
@@ -136,19 +136,19 @@ def share_create(
             lacks the scope.
     """
     if not url or not url.strip():
-        raise ValueError("sp_share_create requires a non-empty url")
+        raise ValueError("sp_file_share_create requires a non-empty url")
     if type not in VALID_LINK_TYPES:
         raise ValueError(
-            f"sp_share_create type must be one of {sorted(VALID_LINK_TYPES)}; got {type!r}",
+            f"sp_file_share_create type must be one of {sorted(VALID_LINK_TYPES)}; got {type!r}",
         )
     if scope not in VALID_LINK_SCOPES:
         raise ValueError(
-            f"sp_share_create scope must be one of {sorted(VALID_LINK_SCOPES)}; got {scope!r}",
+            f"sp_file_share_create scope must be one of {sorted(VALID_LINK_SCOPES)}; got {scope!r}",
         )
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
         raise ValueError(
-            f"sp_share_create requires a file/folder URL; got a site URL: {url!r}",
+            f"sp_file_share_create requires a file/folder URL; got a site URL: {url!r}",
         )
 
     body: dict[str, Any] = {"type": type, "scope": scope}
@@ -187,17 +187,17 @@ def share_revoke(
 ) -> None:
     """Revoke (delete) a sharing-link permission.
 
-    `link_id` is the permission id returned by `sp_share_create` or
-    `sp_share_list`. After this call the share URL stops working.
+    `link_id` is the permission id returned by `sp_file_share_create` or
+    `sp_file_share_list`. After this call the share URL stops working.
     """
     if not url or not url.strip():
-        raise ValueError("sp_share_revoke requires a non-empty url")
+        raise ValueError("sp_file_share_revoke requires a non-empty url")
     if not link_id or not str(link_id).strip():
-        raise ValueError("sp_share_revoke requires a non-empty link_id")
+        raise ValueError("sp_file_share_revoke requires a non-empty link_id")
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
         raise ValueError(
-            f"sp_share_revoke requires a file/folder URL; got a site URL: {url!r}",
+            f"sp_file_share_revoke requires a file/folder URL; got a site URL: {url!r}",
         )
 
     token = get_token(profile)
@@ -243,9 +243,9 @@ def _normalise_create_response(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _normalise_existing_link(perm: dict[str, Any]) -> dict[str, Any]:
-    """Re-shape a sp_permissions entry into the same shape as create.
+    """Re-shape a sp_file_permissions entry into the same shape as create.
 
-    sp_share_list calls sp_permissions and filters to link grantees;
+    sp_file_share_list calls sp_file_permissions and filters to link grantees;
     we project here so callers see consistent fields whether they
     just created the link or are listing pre-existing ones. The
     grantee.link_web_url comes from the underlying Graph permission's

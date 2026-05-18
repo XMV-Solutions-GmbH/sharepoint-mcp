@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_save — upload a local working copy, checkin, return new version id.
+"""sp_save_file — upload a local working copy, checkin, return new version id.
 
 Three Graph calls per save:
 
@@ -16,11 +16,11 @@ Three Graph calls per save:
 
 On success, the registry entry is removed (file is no longer locked
 on the server) and the local working copy is deleted (caller already
-saw the file via sp_open's return path; keeping the working file
+saw the file via sp_open_file's return path; keeping the working file
 around invites confusion about what's authoritative).
 
 `comment` is required and must be non-empty — the same audit-trail
-discipline that sp_save exists to preserve.
+discipline that sp_save_file exists to preserve.
 """
 
 from __future__ import annotations
@@ -43,13 +43,13 @@ VersionLevel = Literal["minor", "major"]
 
 
 class NotCheckedOutError(RuntimeError):
-    """The path isn't in the local checkout registry — call sp_open first."""
+    """The path isn't in the local checkout registry — call sp_open_file first."""
 
 
 class StaleWriteError(RuntimeError):
-    """ETag mismatch on save — file changed under us between sp_open and sp_save.
+    """ETag mismatch on save — file changed under us between sp_open_file and sp_save_file.
 
-    Caller should re-`sp_open` to reconcile, then re-apply edits.
+    Caller should re-`sp_open_file` to reconcile, then re-apply edits.
     """
 
 
@@ -71,17 +71,17 @@ def save(
 
     Raises:
         ValueError: empty url, empty comment, invalid version level.
-        NotCheckedOutError: no registry entry for `url` — sp_open
+        NotCheckedOutError: no registry entry for `url` — sp_open_file
             wasn't called first.
         StaleWriteError: ETag mismatch (412) — the file changed
-            underneath the open lock; re-sp_open required.
+            underneath the open lock; re-sp_open_file required.
         FileNotFoundError: working-copy file is missing on disk.
         httpx.HTTPStatusError: any other non-2xx Graph response.
     """
     if not url or not url.strip():
-        raise ValueError("sp_save requires a non-empty url")
+        raise ValueError("sp_save_file requires a non-empty url")
     if not comment or not comment.strip():
-        raise ValueError("sp_save requires a non-empty comment for the audit trail")
+        raise ValueError("sp_save_file requires a non-empty comment for the audit trail")
     if version not in ("minor", "major"):
         raise ValueError(f"version must be 'minor' or 'major', got {version!r}")
 
@@ -89,15 +89,15 @@ def save(
     entry = registry.get(url)
     if entry is None:
         raise NotCheckedOutError(
-            f"sp_save called without a prior sp_open for {url!r}. "
-            "Call sp_open first to acquire the checkout lock.",
+            f"sp_save_file called without a prior sp_open_file for {url!r}. "
+            "Call sp_open_file first to acquire the checkout lock.",
         )
 
     local_file = Path(entry.local_path)
     if not local_file.exists():
         raise FileNotFoundError(
             f"Working copy missing at {entry.local_path!r}; "
-            "the local file was deleted between sp_open and sp_save.",
+            "the local file was deleted between sp_open_file and sp_save_file.",
         )
 
     token = get_token(profile)
@@ -121,8 +121,8 @@ def save(
                 )
             except StaleUploadSessionError as exc:
                 raise StaleWriteError(
-                    f"File changed under us between sp_open and sp_save for {url!r}. "
-                    "Call sp_release then sp_open again to reconcile.",
+                    f"File changed under us between sp_open_file and sp_save_file for {url!r}. "
+                    "Call sp_release_file then sp_open_file again to reconcile.",
                 ) from exc
         else:
             put_response = client.put(
@@ -132,8 +132,8 @@ def save(
             )
             if put_response.status_code == 412:
                 raise StaleWriteError(
-                    f"File changed under us between sp_open and sp_save for {url!r}. "
-                    "Call sp_release then sp_open again to reconcile.",
+                    f"File changed under us between sp_open_file and sp_save_file for {url!r}. "
+                    "Call sp_release_file then sp_open_file again to reconcile.",
                 )
             put_response.raise_for_status()
             upload = put_response.json()

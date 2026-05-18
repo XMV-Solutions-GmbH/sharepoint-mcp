@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_publish — upload a NEW local file as a new SharePoint document.
+"""sp_upload_new_file — upload a NEW local file as a new SharePoint document.
 
 The "draft + promote" use case from `docs/app-concept.md`: agent
 drafts a document locally, then publishes it to a SharePoint folder
-as a brand-new file. Distinct from `sp_save`, which checks in an
+as a brand-new file. Distinct from `sp_save_file`, which checks in an
 edited copy of an *existing* checked-out file.
 
 Refuses if the target path already exists — the caller should use
-`sp_open` + `sp_save` to update existing files (gives them an audit
+`sp_open_file` + `sp_save_file` to update existing files (gives them an audit
 comment + version history). Distinct semantics, explicit error
 message rather than silent overwrite.
 
@@ -62,16 +62,16 @@ def publish(
         ValueError: empty / blank inputs.
         FileNotFoundError: `local_path` doesn't exist or isn't a file.
         FileExistsError: the target file is already present at the
-            SharePoint URL — use sp_open + sp_save to edit existing
-            files; sp_publish is for new ones only.
+            SharePoint URL — use sp_open_file + sp_save_file to edit existing
+            files; sp_upload_new_file is for new ones only.
         httpx.HTTPStatusError: any other non-2xx from Graph.
         sharepoint_mcp.auth.AuthRequiredError: no cached token for
             `profile`.
     """
     if not local_path or not local_path.strip():
-        raise ValueError("sp_publish requires a non-empty local_path")
+        raise ValueError("sp_upload_new_file requires a non-empty local_path")
     if not target_folder_url or not target_folder_url.strip():
-        raise ValueError("sp_publish requires a non-empty target_folder_url")
+        raise ValueError("sp_upload_new_file requires a non-empty target_folder_url")
 
     src = Path(local_path)
     if not src.exists():
@@ -112,7 +112,7 @@ def publish(
         if existence_response.status_code == 200:
             raise FileExistsError(
                 f"Target already exists at {target_folder_url!r}/{filename!r}. "
-                "Use sp_open + sp_save to update existing files (gives proper "
+                "Use sp_open_file + sp_save_file to update existing files (gives proper "
                 "version history with audit comment).",
             )
         if existence_response.status_code != 404:

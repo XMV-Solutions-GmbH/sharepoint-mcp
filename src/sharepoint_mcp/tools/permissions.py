@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_permissions — list permissions on a file / folder / site (closes #46).
+"""sp_file_permissions — list permissions on a file / folder / site (closes #46).
 
 A single tool that handles three cases by URL shape:
 
@@ -68,7 +68,7 @@ def permissions(
             visible to the caller; 403 if scope is missing).
     """
     if not url or not url.strip():
-        raise ValueError("sp_permissions requires a non-empty url")
+        raise ValueError("sp_file_permissions requires a non-empty url")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     token = get_token(profile)
