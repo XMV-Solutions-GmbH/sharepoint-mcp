@@ -82,6 +82,7 @@ def test_register_read_tools_adds_all_read_tools() -> None:
         "sp_search_files",
         "sp_list_folder",
         "sp_read_file",
+        "sp_download_binary",
         "sp_status",
         "sp_file_history",
         "sp_get_file_version",

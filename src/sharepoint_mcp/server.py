@@ -42,6 +42,8 @@ from sharepoint_mcp.tools.changes import changes as _do_changes
 from sharepoint_mcp.tools.copy_file import copy_file as _do_copy_file
 from sharepoint_mcp.tools.create_folder import create_folder as _do_create_folder
 from sharepoint_mcp.tools.delete_file import delete_file as _do_delete_file
+from sharepoint_mcp.tools.download_binary import download_binary as _do_download_binary
+from sharepoint_mcp.tools.file_metadata import file_metadata as _do_file_metadata
 from sharepoint_mcp.tools.get_version import get_version as _do_get_version
 from sharepoint_mcp.tools.history import history as _do_history
 from sharepoint_mcp.tools.list_folder import list_folder as _do_list
@@ -558,6 +560,25 @@ def register_read_tools(mcp_instance: FastMCP) -> None:
     def sp_get_file_version(url: str, version_id: str) -> str:
         return _do_get_version(url, version_id, profile=_get_profile())
 
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Download SharePoint File as Base64",
+            readOnlyHint=True,
+            idempotentHint=True,
+            openWorldHint=False,
+        ),
+        description=(
+            "Download a SharePoint file's binary content and return it base64-encoded "
+            "in a JSON envelope. Intended for small non-text assets (images, PDFs, "
+            "Office files) that need to be inspected or embedded inline. Returns "
+            "{filename, mime_type, size_bytes, base64}. Hard limit: 10 MB — larger "
+            "files raise an error; use sp_read_file instead, which writes to a local "
+            "temp path. Read-only — does not modify SharePoint state."
+        ),
+    )
+    def sp_download_binary(url: str) -> dict[str, Any]:
+        return _do_download_binary(url, profile=_get_profile())
+
 
 def register_write_tools(mcp_instance: FastMCP) -> None:
     """Register the gated write tools on `mcp_instance`.
@@ -911,6 +932,33 @@ def register_write_tools(mcp_instance: FastMCP) -> None:
     )
     def sp_file_share_revoke(url: str, link_id: str) -> None:
         _do_share_revoke(url, link_id, profile=_get_profile())
+
+    @mcp_instance.tool(
+        annotations=ToolAnnotations(
+            title="Read/Write SharePoint File Metadata",
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=False,
+        ),
+        description=(
+            "Read or update the custom SharePoint column values (metadata) attached "
+            "to a document-library file. "
+            "Read mode (fields omitted): returns a flat dict of all column "
+            "values for the file's list item — system fields (Modified, Author, "
+            "etc.) plus any custom library columns. "
+            "Write mode (fields provided): PATCHes the supplied column key→value "
+            "pairs and returns the full updated field state. Only keys present in "
+            "`fields` are touched; other columns are unchanged. Use internal column "
+            "names (e.g. 'Department', '_Status') — the same keys from read mode. "
+            "Gated by SP_ALLOW_WRITES=true."
+        ),
+    )
+    def sp_file_metadata(
+        url: str,
+        fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return _do_file_metadata(url, fields=fields, profile=_get_profile())
 
 
 def _build_server() -> FastMCP:
