@@ -36,6 +36,26 @@ scripts that reference the old names.
 Tools not renamed (already had unambiguous names): `sp_list_folder`,
 `sp_create_folder`, `sp_delete_file`, `sp_move_file`, `sp_copy_file`.
 
+### Added
+
+- **`sp_download_binary(url)`** — download a SharePoint file's bytes and
+  return them base64-encoded in a JSON envelope (`filename`, `mime_type`,
+  `size_bytes`, `base64`). Intended for small non-text assets (images,
+  PDFs, Office files) that an agent needs to inspect or embed inline.
+  Hard 10 MB guard prevents routing large files through agent context;
+  for larger files use `sp_read_file` which writes a local temp path.
+  Read-only, always available. Implements
+  [#104](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/104).
+
+- **`sp_file_metadata(url, fields=None)`** — read or update the custom
+  SharePoint column values (metadata) attached to a document-library
+  file via `GET/PATCH .../listItem/fields`. Read mode (default): returns
+  the full field dict including system fields. Write mode (`fields`
+  provided): PATCHes the supplied key→value pairs and returns the
+  server-confirmed updated state; only listed columns are touched.
+  Gated by `SP_ALLOW_WRITES=true`. Implements
+  [#103](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/103).
+
 ---
 
 ## [Unreleased]
