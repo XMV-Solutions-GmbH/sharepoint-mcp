@@ -8,7 +8,7 @@ edit-and-save task and lost version history.
 
 ## User prompt
 
-```
+```text
 We need to reorganise the harness sandbox's `Shared Documents/scratch/`
 folder. Concretely:
 

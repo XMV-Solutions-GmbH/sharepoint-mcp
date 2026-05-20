@@ -49,6 +49,7 @@ process, MCP config that points at the editable local install, a
 JSONL transcript parser) that's a meaningful effort by itself.
 
 For v0.7.0, this directory ships with:
+
 - The scenario file format and one concrete scenario (`anqer-reorg.md`)
 - Scoring criteria documented
 - A tracking issue for the runner implementation
