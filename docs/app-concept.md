@@ -179,7 +179,7 @@ Unknown group names cause a loud startup error (non-zero exit), not silent skip.
 
 On startup, the server emits one stderr line:
 
-```
+```text
 mcp-server-sharepoint 0.7.0 — groups=[drive,list,site,search,share,auth] writes=true
 ```
 
