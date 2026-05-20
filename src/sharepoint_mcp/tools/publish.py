@@ -1,23 +1,31 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_upload_new_file — upload a NEW local file as a new SharePoint document.
+"""sp_drive_file_upload — upload a NEW local file as a new SharePoint document.
 
 The "draft + promote" use case from `docs/app-concept.md`: agent
 drafts a document locally, then publishes it to a SharePoint folder
-as a brand-new file. Distinct from `sp_save_file`, which checks in an
-edited copy of an *existing* checked-out file.
+as a brand-new file. Distinct from `sp_drive_file_checkin`, which
+checks in an edited copy of an *existing* checked-out file.
 
 Refuses if the target path already exists — the caller should use
-`sp_open_file` + `sp_save_file` to update existing files (gives them an audit
-comment + version history). Distinct semantics, explicit error
-message rather than silent overwrite.
+`sp_drive_file_checkout` + `sp_drive_file_checkin` to update existing files
+(gives them an audit comment + version history). Distinct semantics,
+explicit error message rather than silent overwrite.
 
-Two Graph calls:
+Recursively creates any missing parent folders along the target path,
+delegating to `sp_drive_folder_create`. Uniform with the docstring
+contract documented in `docs/app-concept.md` § Tool design principles
+§ Recursive parent creation is uniform.
+
+Graph calls (happy path, folder exists):
 
 1. `GET /sites/{id}/drive/root:/{path}` — check if target exists
    (404 means free to publish).
 2. `PUT /sites/{id}/drive/root:/{path}:/content` — upload the file.
+
+If the target folder is missing, an additional one-POST-per-segment
+hierarchy creation is interposed before the upload.
 
 The created driveItem has `eTag` and `webUrl` populated by Microsoft
 on the response; we surface them so the caller can persist a
@@ -38,6 +46,7 @@ from sharepoint_mcp.tools._common import (
     resolve_drive_item_full,
     resolve_site_id,
 )
+from sharepoint_mcp.tools.create_folder import create_folder
 
 
 def publish(
@@ -62,16 +71,16 @@ def publish(
         ValueError: empty / blank inputs.
         FileNotFoundError: `local_path` doesn't exist or isn't a file.
         FileExistsError: the target file is already present at the
-            SharePoint URL — use sp_open_file + sp_save_file to edit existing
-            files; sp_upload_new_file is for new ones only.
+            SharePoint URL — use sp_drive_file_checkout + sp_drive_file_checkin to edit existing
+            files; sp_drive_file_upload is for new ones only.
         httpx.HTTPStatusError: any other non-2xx from Graph.
         sharepoint_mcp.auth.AuthRequiredError: no cached token for
             `profile`.
     """
     if not local_path or not local_path.strip():
-        raise ValueError("sp_upload_new_file requires a non-empty local_path")
+        raise ValueError("sp_drive_file_upload requires a non-empty local_path")
     if not target_folder_url or not target_folder_url.strip():
-        raise ValueError("sp_upload_new_file requires a non-empty target_folder_url")
+        raise ValueError("sp_drive_file_upload requires a non-empty target_folder_url")
 
     src = Path(local_path)
     if not src.exists():
@@ -97,8 +106,19 @@ def publish(
         # is the default drive's root on the site. Library fallback in
         # resolve_drive_item_full transparently handles non-default
         # libraries (Site Assets, custom document libraries).
+        #
+        # If the folder doesn't exist yet, recursively create the missing
+        # hierarchy and retry resolve — uniform "recursive parent creation"
+        # contract from app-concept.md § Tool design principles.
         if folder_path:
-            folder = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
+            try:
+                folder = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
+            except httpx.HTTPStatusError as err:
+                if err.response.status_code != 404:
+                    raise
+                site_url = f"https://{hostname}{site_path}"
+                create_folder(site_url, folder_path, profile=profile, http=client)
+                folder = resolve_drive_item_full(client, site_id, folder_path, headers=headers)
             drive_id = folder["parentReference"]["driveId"]
             folder_id = folder["id"]
             existence_url = f"{GRAPH_BASE}/drives/{drive_id}/items/{folder_id}:/{filename}"
@@ -112,8 +132,8 @@ def publish(
         if existence_response.status_code == 200:
             raise FileExistsError(
                 f"Target already exists at {target_folder_url!r}/{filename!r}. "
-                "Use sp_open_file + sp_save_file to update existing files (gives proper "
-                "version history with audit comment).",
+                "Use sp_drive_file_checkout + sp_drive_file_checkin to update existing "
+                "files (gives proper version history with audit comment).",
             )
         if existence_response.status_code != 404:
             existence_response.raise_for_status()

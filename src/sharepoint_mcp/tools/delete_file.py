@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_delete_file — delete a drive file or folder (soft-delete to recycle bin).
+"""sp_drive_file_delete — delete a drive file or folder (soft-delete to recycle bin).
 
-Mirrors sp_delete_item (list items) for drive files. Graph's DELETE on a
+Mirrors sp_list_item_delete (list items) for drive files. Graph's DELETE on a
 driveItem sends it to the site recycle bin, matching SharePoint's native
-behaviour — recoverable for ~93 days via sp_file_trash_list.
+behaviour — recoverable for ~93 days via sp_site_trash_list.
 
 Graph API:
     DELETE /drives/{drive_id}/items/{item_id}
@@ -56,9 +56,9 @@ def delete_file(
         sharepoint_mcp.auth.AuthRequiredError: no cached token for ``profile``.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_delete_file requires a non-empty site_url")
+        raise ValueError("sp_drive_file_delete requires a non-empty site_url")
     if not path or not path.strip():
-        raise ValueError("sp_delete_file requires a non-empty path")
+        raise ValueError("sp_drive_file_delete requires a non-empty path")
 
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
 
@@ -68,7 +68,7 @@ def delete_file(
     # explicit ``path`` argument.
     drive_path = item_path if item_path else path.strip().strip("/")
     if not drive_path:
-        raise ValueError("sp_delete_file: could not determine a drive-relative path")
+        raise ValueError("sp_drive_file_delete: could not determine a drive-relative path")
 
     token = get_token(profile)
     headers: dict[str, str] = {"Authorization": f"Bearer {token}"}

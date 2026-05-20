@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_open_files / sp_save_files (#41).
+"""Unit tests for sp_drive_file_checkout_bulk / sp_drive_file_checkin_bulk (#41).
 
 We test the dispatcher / retry behaviour by injecting fake worker
 functions, NOT by going all the way through respx-mocked open_file/

@@ -95,7 +95,7 @@ def test_open_modify_save_creates_new_version(cleanup_checkouts: None) -> None:
 
 
 def test_release_idempotent_on_unknown_path(cleanup_checkouts: None) -> None:
-    """sp_release_file silently no-ops when nothing is checked out — even with valid creds."""
+    """sp_drive_file_checkout_discard silently no-ops when nothing is checked out."""
     del cleanup_checkouts
     _skip_if_no_harness()
     # Path NOT in registry. Should not raise, should not call Graph.

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_file_metadata — read/write custom SharePoint column values on a drive file.
+"""sp_drive_file_metadata — read/write custom SharePoint column values on a drive file.
 
 Wraps `GET /drives/{id}/items/{id}/listItem/fields` (read path) and
 `PATCH /drives/{id}/items/{id}/listItem/fields` (write path).
@@ -68,15 +68,15 @@ def file_metadata(
         sharepoint_mcp.auth.AuthRequiredError: no usable cached token.
     """
     if not url or not url.strip():
-        raise ValueError("sp_file_metadata requires a non-empty url")
+        raise ValueError("sp_drive_file_metadata requires a non-empty url")
 
     if fields is not None and not isinstance(fields, dict):
-        raise TypeError("sp_file_metadata: fields must be a dict or None")
+        raise TypeError("sp_drive_file_metadata: fields must be a dict or None")
 
     hostname, site_path, item_path = parse_sharepoint_url(url)
     if not item_path:
         raise ValueError(
-            f"sp_file_metadata needs a file URL, got a site/folder URL: {url!r}",
+            f"sp_drive_file_metadata needs a file URL, got a site/folder URL: {url!r}",
         )
 
     token = get_token(profile)

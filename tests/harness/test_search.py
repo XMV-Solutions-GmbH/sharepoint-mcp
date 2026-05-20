@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_search_files — real Microsoft Graph against the harness sandbox.
+"""Harness tests for sp_search_query — real Microsoft Graph against the harness sandbox.
 
 Skipped when no harness credentials are present (same pattern as
 `test_auth_smoke.py`).
@@ -63,7 +63,7 @@ def test_sp_search_files_hit_shape_matches_documented_contract() -> None:
 def test_sp_search_files_empty_query_validation() -> None:
     """Validation kicks in before any Graph call — auth not required for this."""
     # No skip — this should work even without harness credentials,
-    # because the validation is local. But sp_search_files needs profile to
+    # because the validation is local. But sp_search_query needs profile to
     # pass; we use harness even if it doesn't exist (won't be reached).
     with pytest.raises(ValueError, match="non-empty query"):
         search("", profile=HARNESS_PROFILE)

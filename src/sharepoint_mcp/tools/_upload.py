@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Resumable upload session helper for sp_save_file (closes #38).
+"""Resumable upload session helper for sp_drive_file_checkin (closes #38).
 
 Microsoft Graph caps single-shot `PUT /content` at 250 MB per file
 on SharePoint Online. For files above the threshold (default 100 MB,
@@ -95,7 +95,7 @@ def upload_resumable(
     if session_response.status_code == 412:
         raise StaleUploadSessionError(
             "Upload session refused: ETag mismatch (412). File changed "
-            "under us between sp_open_file and sp_save_file.",
+            "under us between sp_drive_file_checkout and sp_drive_file_checkin.",
         )
     session_response.raise_for_status()
     upload_url = str(session_response.json()["uploadUrl"])

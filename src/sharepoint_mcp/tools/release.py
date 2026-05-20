@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_release_file — discard a pending checkout without saving.
+"""sp_drive_file_checkout_discard — discard a pending checkout without saving.
 
 `POST /drives/{id}/items/{id}/discardCheckout` releases the
 server-side lock without committing any local changes. The local
@@ -39,9 +39,9 @@ def release(
     """Discard the checkout for `url` without saving changes.
 
     No-op (returns silently) when nothing is registered locally for
-    `url` — either we never sp_open_file'd it, or sp_release_file was already
-    called. Either way, the desired state is "no local checkout for
-    this path", which is true.
+    `url` — either we never sp_drive_file_checkout'd it, or
+    sp_drive_file_checkout_discard was already called. Either way, the
+    desired state is "no local checkout for this path", which is true.
 
     Raises:
         ValueError: empty url.
@@ -49,7 +49,7 @@ def release(
             registry entry + working file still get cleaned up.
     """
     if not url or not url.strip():
-        raise ValueError("sp_release_file requires a non-empty url")
+        raise ValueError("sp_drive_file_checkout_discard requires a non-empty url")
 
     registry = CheckoutRegistry(profile=profile)
     entry = registry.get(url)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_file_trash_list / sp_trash_restore (#50)."""
+"""Unit tests for sp_site_trash_list / sp_trash_restore (#50)."""
 
 from __future__ import annotations
 

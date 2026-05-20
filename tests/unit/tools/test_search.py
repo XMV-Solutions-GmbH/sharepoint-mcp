@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_search_files.
+"""Unit tests for sp_search_query.
 
 Mocks both Microsoft Graph (via respx) and the auth layer (by giving
 search() an in-memory TokenStore via auth.get_token's keyword args).

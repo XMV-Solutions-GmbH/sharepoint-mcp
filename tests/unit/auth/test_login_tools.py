@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_login_begin / sp_login_status (#75, #76).
+"""Unit tests for sp_auth_begin / sp_auth_status (#75, #76).
 
 Edge cases deliberately covered:
 - Idempotent re-call returns existing pending session unchanged.
 - force=True cancels the prior task and returns a fresh session.
 - Concurrent simultaneous calls — first-write-wins.
-- Service-principal mode → sp_login_begin refuses with typed error.
+- Service-principal mode → sp_auth_begin refuses with typed error.
 - Microsoft refuses /devicecode → DeviceCodeRequestFailedError raised.
 - public_view shape: device_code is NEVER in the output (security).
 - login_status: all five states (signed_in via active probe, pending,
@@ -256,7 +256,7 @@ async def test_login_status_signed_in_when_cached_valid_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A user who logged in via CLI days ago has a valid token on disk;
-    sp_login_status must surface signed_in directly, not 'none'."""
+    sp_auth_status must surface signed_in directly, not 'none'."""
     cached = CachedToken(
         access_token=_make_jwt({"upn": "alice@x.com"}),
         refresh_token="rt",
@@ -306,7 +306,7 @@ async def test_login_status_pending_from_in_memory_session(
 async def test_login_status_signed_in_after_session_reaches_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Once the polling task finishes (status=success), sp_login_status
+    """Once the polling task finishes (status=success), sp_auth_status
     surfaces 'signed_in' (not 'success' as an internal state)."""
     monkeypatch.setattr(
         login_tools,

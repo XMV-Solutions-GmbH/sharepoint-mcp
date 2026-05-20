@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_create_folder — create a folder hierarchy in a SharePoint document library.
+"""sp_drive_folder_create — create a folder hierarchy in a SharePoint document library.
 
-Complementary to the checkout/checkin lifecycle: sp_open_file/sp_save_file require an
-existing item to check out. This tool creates new folders where none exist yet.
+Complementary to the checkout/checkin lifecycle: sp_drive_file_checkout and
+sp_drive_file_checkin require an existing item to check out. This tool creates
+new folders where none exist yet.
 
 Graph API: one POST per segment that doesn't exist yet:
 
@@ -71,14 +72,14 @@ def create_folder(
         sharepoint_mcp.auth.AuthRequiredError: no cached token for ``profile``.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_create_folder requires a non-empty site_url")
+        raise ValueError("sp_drive_folder_create requires a non-empty site_url")
     if not path or not path.strip():
-        raise ValueError("sp_create_folder requires a non-empty path")
+        raise ValueError("sp_drive_folder_create requires a non-empty path")
 
     segments = _normalize_path(path)
     if not segments:
         raise ValueError(
-            f"sp_create_folder: path {path!r} contains no valid folder segments "
+            f"sp_drive_folder_create: path {path!r} contains no valid folder segments "
             "after stripping the library prefix and slashes",
         )
 

@@ -8,53 +8,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.7.0] — Unreleased
 
-### Changed (breaking) — Tool renames
+This is a **breaking restructuring release**. Every tool has been renamed
+under a new `sp_<category>_<noun>_<verb>` nomenclature, the tool surface
+is now group-filterable at startup, and one base64-returning tool has
+been removed. See [#107](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/107)
+for the full rationale.
 
-16 MCP tool functions have been renamed for clarity and consistency.
-Update any `.mcp.json` "always allow" entries, saved prompts, or
-scripts that reference the old names.
+MCP clients re-discover the tool catalog on connect, so existing
+`.mcp.json` configs continue to work — but saved "always allow" rules,
+prompt snippets, and any external scripts that reference old names must
+be updated. The full rename map is in
+[#107's first comment](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/107#issuecomment-4499111873).
 
-| Old name | New name |
-|---|---|
-| `sp_read` | `sp_read_file` |
-| `sp_open` | `sp_open_file` |
-| `sp_open_many` | `sp_open_files` |
-| `sp_save` | `sp_save_file` |
-| `sp_save_many` | `sp_save_files` |
-| `sp_release` | `sp_release_file` |
-| `sp_history` | `sp_file_history` |
-| `sp_get_version` | `sp_get_file_version` |
-| `sp_changes` | `sp_file_changes` |
-| `sp_search` | `sp_search_files` |
-| `sp_permissions` | `sp_file_permissions` |
-| `sp_share_create` | `sp_file_share_create` |
-| `sp_share_list` | `sp_file_share_list` |
-| `sp_share_revoke` | `sp_file_share_revoke` |
-| `sp_trash_list` | `sp_file_trash_list` |
-| `sp_publish` | `sp_upload_new_file` |
+### Changed (breaking) — Nomenclature
 
-Tools not renamed (already had unambiguous names): `sp_list_folder`,
-`sp_create_folder`, `sp_delete_file`, `sp_move_file`, `sp_copy_file`.
+All 36 tools renamed to encode their SharePoint entity category in the
+name itself. Six categories: `sp_auth_*`, `sp_site_*`, `sp_drive_*`,
+`sp_list_*`, `sp_share_*`, `sp_search_*`. A few representative examples:
+
+- `sp_open_file` → `sp_drive_file_checkout`
+- `sp_save_file` → `sp_drive_file_checkin`
+- `sp_release_file` → `sp_drive_file_checkout_discard`
+- `sp_upload_new_file` → `sp_drive_file_upload`
+- `sp_delete_item` (List items) → `sp_list_item_delete`
+- `sp_delete_file` (drive items) → `sp_drive_file_delete`
+- `sp_search_files` → `sp_search_query`
+- `sp_login_begin` → `sp_auth_begin`
+
+The category prefix lets an LLM pick the right tool from the name
+alone — no docstring reading required. The previous flat namespace
+made `sp_delete_item` (Lists only) and `sp_delete_file` (drive items)
+look like one tool with overlapping scope; the new names make scope
+unambiguous.
 
 ### Added
 
-- **`sp_download_binary(url)`** — download a SharePoint file's bytes and
-  return them base64-encoded in a JSON envelope (`filename`, `mime_type`,
-  `size_bytes`, `base64`). Intended for small non-text assets (images,
-  PDFs, Office files) that an agent needs to inspect or embed inline.
-  Hard 10 MB guard prevents routing large files through agent context;
-  for larger files use `sp_read_file` which writes a local temp path.
-  Read-only, always available. Implements
-  [#104](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/104).
+- **`SP_TOOL_GROUPS` environment variable**: comma-separated subset of
+  `{auth, site, drive, list, share, search}` controls which tool groups
+  register at startup. Default (unset) = all groups. `auth` is always
+  registered. Unknown group names cause a loud non-zero exit on startup.
+  Configurable via `.mcp.json` `env` block:
 
-- **`sp_file_metadata(url, fields=None)`** — read or update the custom
-  SharePoint column values (metadata) attached to a document-library
-  file via `GET/PATCH .../listItem/fields`. Read mode (default): returns
-  the full field dict including system fields. Write mode (`fields`
-  provided): PATCHes the supplied key→value pairs and returns the
-  server-confirmed updated state; only listed columns are touched.
-  Gated by `SP_ALLOW_WRITES=true`. Implements
-  [#103](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/103).
+  ```jsonc
+  {
+    "mcpServers": {
+      "sharepoint": {
+        "command": "uvx",
+        "args": ["mcp-server-sharepoint"],
+        "env": {
+          "SP_TOOL_GROUPS": "drive,search",
+          "SP_ALLOW_WRITES": "true"
+        }
+      }
+    }
+  }
+  ```
+
+  Reduces LLM tool-selection error in projects that only need a subset.
+  Orthogonal to `SP_ALLOW_WRITES` — group selection picks which tools
+  are visible; writes flag decides whether the mutating subset within
+  each group registers.
+
+- **Startup banner**: one stderr line on server boot announcing version,
+  enabled groups, and writes state — e.g. `mcp-server-sharepoint 0.7.0 —
+  groups=[auth,drive,list,search,share,site] writes=true`. Lets MCP-client
+  log windows immediately confirm what version is running.
+
+- **Recursive parent creation in `sp_drive_file_upload`**: the tool now
+  recursively creates any missing parent folders along the target path,
+  delegating to `sp_drive_folder_create`. Previously a 404 surfaced when
+  intermediate folders were missing. Aligns with the uniform "recursive
+  parent creation" contract in
+  [docs/app-concept.md § Tool design principles](docs/app-concept.md#tool-design-principles).
+
+### Removed
+
+- **`sp_download_binary`** — removed. Returned base64-encoded file content
+  as the only way to surface bytes to an LLM. Production use showed even
+  Claude-class models lose `=` padding under copy-paste-through-JSON
+  conditions; the failure mode was silent corruption. Replacement pattern:
+  `sp_drive_file_read` downloads to a local temp path and returns the
+  path; the LLM consumes the file via its filesystem tools (Read, Bash).
+  Documented as a binding rule in
+  [docs/app-concept.md § Tool design principles § No base64 on the tool surface — ever](docs/app-concept.md#tool-design-principles).
+
+### Documentation
+
+- `docs/app-concept.md` substantially rewritten:
+  - § Tools exposed now lists all 36 tools grouped by category, with
+    signatures.
+  - New § Tool design principles section documents the five binding
+    invariants (nomenclature, no base64, recursive parent creation,
+    `SP_TOOL_GROUPS`, startup banner).
+  - § Testability gained a "Behavioural harness" subsection describing
+    the cloud-agent end-to-end test that drives an LLM through realistic
+    SharePoint reorganisation scenarios against the harness sandbox.
+  - § Release scope now describes v0.7.0 instead of the legacy v0.1
+    MVP scope.
 
 ---
 

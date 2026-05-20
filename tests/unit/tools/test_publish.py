@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_upload_new_file."""
+"""Unit tests for sp_drive_file_upload."""
 
 from __future__ import annotations
 
@@ -190,7 +190,7 @@ def test_publish_refuses_when_target_exists(store_with_fresh_token: None, tmp_pa
         json={"id": "01ITEM", "name": "existing.md"}
     )
 
-    with pytest.raises(FileExistsError, match="Use sp_open_file"):
+    with pytest.raises(FileExistsError, match="Use sp_drive_file_checkout"):
         publish(str(src), f"https://{SITE_HOST}{SITE_PATH}")
 
 

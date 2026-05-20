@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_delete_file, sp_move_file, sp_copy_file (#92, #95, #96).
+"""Harness tests for sp_drive_file_delete, sp_drive_file_move, sp_drive_file_copy (#92, #95, #96).
 
 These tests run against the real SharePoint harness sandbox and validate the
 Graph API contract that unit tests with mocks cannot catch.
@@ -56,7 +56,7 @@ def _publish_text(path: str, label: str) -> None:
 
 @pytest.fixture
 def harness_root() -> Iterator[str]:
-    """Unique top-level folder; deleted from SharePoint after the test via sp_delete_file."""
+    """Unique top-level folder; deleted from SharePoint after the test via sp_drive_file_delete."""
     folder = f"harness-drive-ops-{int(time.time())}"
     yield folder
     # Best-effort cleanup — swallow errors so fixture teardown never masks test failures.
@@ -67,7 +67,7 @@ def harness_root() -> Iterator[str]:
 
 
 # ------------------------------------------------------------------
-# sp_delete_file
+# sp_drive_file_delete
 # ------------------------------------------------------------------
 
 
@@ -100,7 +100,7 @@ def test_delete_file_folder_moves_to_recycle_bin(harness_root: str) -> None:
 
 
 # ------------------------------------------------------------------
-# sp_move_file
+# sp_drive_file_move
 # ------------------------------------------------------------------
 
 
@@ -137,7 +137,7 @@ def test_move_file_rename_in_place(harness_root: str) -> None:
 
 
 # ------------------------------------------------------------------
-# sp_copy_file
+# sp_drive_file_copy
 # ------------------------------------------------------------------
 
 

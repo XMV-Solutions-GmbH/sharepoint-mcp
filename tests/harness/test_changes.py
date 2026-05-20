@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_file_changes (#51) — delta-query change tracking.
+"""Harness tests for sp_drive_change_track (#51) — delta-query change tracking.
 
 End-to-end lifecycle:
 1. First call returns full item list + initial cursor.

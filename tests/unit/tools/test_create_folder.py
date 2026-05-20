@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_create_folder (issue #86)."""
+"""Unit tests for sp_drive_folder_create (issue #86)."""
 
 from __future__ import annotations
 

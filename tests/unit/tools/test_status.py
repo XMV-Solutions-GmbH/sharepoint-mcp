@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_status."""
+"""Unit tests for sp_drive_checkout_list."""
 
 from __future__ import annotations
 
@@ -129,7 +129,8 @@ def test_status_does_not_leak_etag_or_internal_ids(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Public response keeps only the user-facing fields. ETag / drive_id /
-    item_id are internal plumbing for sp_save_file and shouldn't leak via sp_status.
+    item_id are internal plumbing for sp_drive_file_checkin and shouldn't
+    leak via sp_drive_checkout_list.
     """
     monkeypatch.setattr("sharepoint_mcp.checkout_registry.DEFAULT_REGISTRY_DIR", tmp_path)
     _seed(

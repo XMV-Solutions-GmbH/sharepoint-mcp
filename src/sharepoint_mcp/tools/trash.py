@@ -3,7 +3,7 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Recycle-bin tools (closes #50, partial).
 
-- `sp_file_trash_list(site_url)` — list items in the site's recycle bin.
+- `sp_site_trash_list(site_url)` — list items in the site's recycle bin.
 
 `sp_trash_restore` is **deferred**. Microsoft Graph's beta endpoint
 at `/beta/sites/{id}/recycleBin/items` exposes the listing, but no
@@ -14,7 +14,7 @@ restore action — or we add a SharePoint REST API fallback — restore
 must be done via the SharePoint web UI. Tracked in a follow-up
 ticket; see CHANGELOG / issue #50 thread.
 
-`sp_file_trash_list` uses Microsoft Graph's `/beta` endpoint. The
+`sp_site_trash_list` uses Microsoft Graph's `/beta` endpoint. The
 site-level recycle-bin API has not been promoted to v1.0 (as of
 2026-05-07). Beta is stable enough that production tools rely on
 it (SharePoint web UI, admin center), but Microsoft reserves the
@@ -22,7 +22,7 @@ right to change the schema. We pin to the documented beta shape
 and will migrate to v1.0 when it lands. See
 <https://learn.microsoft.com/en-us/graph/api/recyclebin-list-items?view=graph-rest-beta>.
 
-Result shape for `sp_file_trash_list`:
+Result shape for `sp_site_trash_list`:
 
     {
         "id": "<recycle-bin-item-id>",
@@ -73,13 +73,13 @@ def trash_list(
             tenant has the recycle-bin endpoint disabled.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_file_trash_list requires a non-empty site_url")
+        raise ValueError("sp_site_trash_list requires a non-empty site_url")
     if limit < 1:
         raise ValueError(f"limit must be >= 1, got {limit!r}")
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
     if item_path:
         raise ValueError(
-            f"sp_file_trash_list expects a site URL, not a file/folder URL "
+            f"sp_site_trash_list expects a site URL, not a file/folder URL "
             f"(got {site_url!r}; item path {item_path!r}).",
         )
 

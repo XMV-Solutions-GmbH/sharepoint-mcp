@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Integrated MCP-tool login flow (sp_login_begin + sp_login_status).
+"""Integrated MCP-tool login flow (sp_auth_begin + sp_auth_status).
 
 Provides the two MCP tools the agent calls to drive Device Code login
 without shelling out to the CLI:
@@ -80,7 +80,7 @@ _REGISTRY = LoginSessionRegistry()
 class ConcurrentLoginAttemptError(RuntimeError):
     """Another process already holds the login-flow lock for this profile.
 
-    Raised when `sp_login_begin` detects a cross-process Device Code
+    Raised when `sp_auth_begin` detects a cross-process Device Code
     flow in progress (CLI or another MCP server instance). The agent
     should surface this to the user and ask them to wait before retrying.
     """
@@ -98,7 +98,7 @@ class DeviceCodeRequestFailedError(RuntimeError):
 class ServicePrincipalActiveError(RuntimeError):
     """The server is configured for service-principal auth.
 
-    `sp_login_begin` is only meaningful in delegated mode. In
+    `sp_auth_begin` is only meaningful in delegated mode. In
     service-principal mode the consumer's `get_app_only_token()`
     auto-acquires tokens from the configured `SP_CLIENT_SECRET`;
     no Device Code flow is involved.
@@ -139,7 +139,7 @@ async def login_begin(
     """
     if is_service_principal_mode():
         raise ServicePrincipalActiveError(
-            "sp_login_begin is for delegated user auth. The server is "
+            "sp_auth_begin is for delegated user auth. The server is "
             "configured for service-principal mode (SP_AUTH_MODE / "
             "SP_CLIENT_SECRET) — tokens are auto-acquired from the "
             "client_secret without user interaction.",
@@ -327,11 +327,11 @@ async def login_status(*, profile: str = "default") -> dict[str, Any]:
       reached `success`. `signed_in_user_upn` populated.
     - `pending` — Device Code flow in progress. `user_code` /
       `verification_url` / `time_remaining_s` populated.
-    - `none` — neither: agent should call `sp_login_begin`.
+    - `none` — neither: agent should call `sp_auth_begin`.
 
     Recently-terminal sessions (`expired` / `failed` / `cancelled`)
     surface their error once via the `error` field but do NOT advance
-    to `none` — they keep their terminal state until `sp_login_begin`
+    to `none` — they keep their terminal state until `sp_auth_begin`
     is called again. This lets the agent surface a clear "code
     expired, please try again" message instead of "you're not signed
     in" (which would be ambiguous between never-tried and just-failed).
@@ -471,7 +471,7 @@ def _extract_upn_from_jwt(access_token: str) -> str | None:
     Microsoft Identity v2.0 access tokens are JWTs whose middle segment
     is the base64url-encoded claims payload. This extraction is purely
     local (no Graph round-trip) and cheap — typical agent UX wants the
-    upn rendered in `sp_login_status`'s response immediately.
+    upn rendered in `sp_auth_status`'s response immediately.
 
     Returns None on any parse failure. The consumer can fall back to a
     `/me` lookup if precise display-name matters more than latency.
