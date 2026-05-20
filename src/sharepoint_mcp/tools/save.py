@@ -81,9 +81,7 @@ def save(
     if not url or not url.strip():
         raise ValueError("sp_drive_file_checkin requires a non-empty url")
     if not comment or not comment.strip():
-        raise ValueError(
-            "sp_drive_file_checkin requires a non-empty comment for the audit trail"
-        )
+        raise ValueError("sp_drive_file_checkin requires a non-empty comment for the audit trail")
     if version not in ("minor", "major"):
         raise ValueError(f"version must be 'minor' or 'major', got {version!r}")
 
