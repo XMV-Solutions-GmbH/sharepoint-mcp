@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_copy_file — copy a drive file to a new path (async Graph operation).
+"""sp_drive_file_copy — copy a drive file to a new path (async Graph operation).
 
 Graph's copy endpoint is asynchronous: it returns 202 Accepted with a
 ``Location`` header pointing to an operation-status URL. We poll that URL
@@ -19,7 +19,7 @@ Graph API:
 The ``resourceLink`` in the completed status response is the webUrl of the new
 item. If the operation doesn't complete within the timeout, we raise
 ``TimeoutError`` — the copy may still complete on the server side, but the
-caller can verify with sp_list_folder.
+caller can verify with sp_drive_folder_list.
 
 Implements GitHub issue #96.
 """
@@ -80,19 +80,19 @@ def copy_file(
         sharepoint_mcp.auth.AuthRequiredError: no cached token for ``profile``.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_copy_file requires a non-empty site_url")
+        raise ValueError("sp_drive_file_copy requires a non-empty site_url")
     if not source_path or not source_path.strip():
-        raise ValueError("sp_copy_file requires a non-empty source_path")
+        raise ValueError("sp_drive_file_copy requires a non-empty source_path")
     if not destination_path or not destination_path.strip():
-        raise ValueError("sp_copy_file requires a non-empty destination_path")
+        raise ValueError("sp_drive_file_copy requires a non-empty destination_path")
 
     src = source_path.strip().strip("/")
     dst = destination_path.strip().strip("/")
 
     if not src:
-        raise ValueError("sp_copy_file: source_path contains no path segments")
+        raise ValueError("sp_drive_file_copy: source_path contains no path segments")
     if not dst:
-        raise ValueError("sp_copy_file: destination_path contains no path segments")
+        raise ValueError("sp_drive_file_copy: destination_path contains no path segments")
 
     hostname, site_path, _ = parse_sharepoint_url(site_url)
     token = get_token(profile)
@@ -176,7 +176,7 @@ def copy_file(
         operation_url = copy_resp.headers.get("Location", "")
         if not operation_url:
             raise RuntimeError(
-                "sp_copy_file: Graph returned 202 but no Location header — "
+                "sp_drive_file_copy: Graph returned 202 but no Location header — "
                 "cannot poll operation status"
             )
 
@@ -223,11 +223,13 @@ def _poll_copy_operation(
             error = data.get("error") or {}
             code = error.get("code") or "unknown"
             message = error.get("message") or "no details"
-            raise RuntimeError(f"sp_copy_file: Graph copy operation failed — {code}: {message}")
+            raise RuntimeError(
+                f"sp_drive_file_copy: Graph copy operation failed — {code}: {message}"
+            )
 
         time.sleep(_POLL_INTERVAL_SECONDS)
 
     raise TimeoutError(
-        f"sp_copy_file: copy operation did not complete within {timeout} seconds. "
-        "The copy may still be in progress on the server — check sp_list_folder to verify."
+        f"sp_drive_file_copy: copy operation did not complete within {timeout} seconds. "
+        "The copy may still be in progress on the server — check sp_drive_folder_list to verify."
     )

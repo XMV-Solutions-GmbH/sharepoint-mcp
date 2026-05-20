@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_file_permissions (#46)."""
+"""Harness tests for sp_share_permission_list (#46)."""
 
 from __future__ import annotations
 

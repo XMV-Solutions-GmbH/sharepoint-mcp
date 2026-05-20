@@ -125,11 +125,11 @@ def test_consent_gate_build_server_writes_true_registers_write_tools(
 
     server = _build_server()
     names = {t.name for t in asyncio.run(server.list_tools())}
-    assert "sp_open_file" in names
-    assert "sp_save_file" in names
-    assert "sp_release_file" in names
+    assert "sp_drive_file_checkout" in names
+    assert "sp_drive_file_checkin" in names
+    assert "sp_drive_file_checkout_discard" in names
     # Read tools always there
-    assert "sp_search_files" in names
+    assert "sp_search_query" in names
 
 
 def test_consent_gate_build_server_writes_false_omits_write_tools(
@@ -142,6 +142,6 @@ def test_consent_gate_build_server_writes_false_omits_write_tools(
 
     server = _build_server()
     names = {t.name for t in asyncio.run(server.list_tools())}
-    assert "sp_open_file" not in names
-    assert "sp_save_file" not in names
-    assert "sp_search_files" in names
+    assert "sp_drive_file_checkout" not in names
+    assert "sp_drive_file_checkin" not in names
+    assert "sp_search_query" in names

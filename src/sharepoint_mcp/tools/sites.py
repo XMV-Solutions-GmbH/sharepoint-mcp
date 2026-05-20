@@ -5,11 +5,11 @@
 
 Two read-only tools:
 
-- `sp_sites(query=None)` — search across sites the user can see.
+- `sp_site_list(query=None)` — search across sites the user can see.
   Wraps `GET /sites?search=...`. Empty query lists everything visible
   via the multi-tenant default (typically sites under the user's
   primary tenant).
-- `sp_followed_sites()` — the "my SharePoint" entrypoint, wrapping
+- `sp_site_followed_list()` — the "my SharePoint" entrypoint, wrapping
   `GET /me/followedSites`. Useful for an agent that wants to start
   from the user's curated list rather than guess at site URLs.
 
@@ -25,7 +25,7 @@ Returned dict shape per site (consistent across both tools):
 
 The `id` is the Graph composite ID (`hostname,siteCollectionId,webId`)
 that other Graph endpoints accept. Callers don't usually need it —
-the `web_url` is what they pass to `sp_list_folder` / `sp_search_files` etc. —
+the `web_url` is what they pass to `sp_drive_folder_list` / `sp_search_query` etc. —
 but it's exposed for advanced use.
 """
 
@@ -93,16 +93,16 @@ def drives(
     with id, name, web_url, description, drive_type ("documentLibrary"
     for the typical case), and quota info when present.
 
-    Together with `sp_sites`, this lets the agent discover which
+    Together with `sp_site_list`, this lets the agent discover which
     library to read from on a given site without having to know the
     library names upfront.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_drives requires a non-empty site_url")
+        raise ValueError("sp_site_drive_list requires a non-empty site_url")
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
     if item_path:
         raise ValueError(
-            f"sp_drives expects a site URL, not a file/folder URL "
+            f"sp_site_drive_list expects a site URL, not a file/folder URL "
             f"(got {site_url!r}; item path {item_path!r}).",
         )
 
@@ -142,7 +142,7 @@ def followed_sites(
     "Following" list in the SharePoint web UI. In service-principal
     mode there's no `/me`, so this raises a clear error rather than
     silently returning empty — the agent should fall back to
-    `sp_sites()` for a tenant-wide view.
+    `sp_site_list()` for a tenant-wide view.
     """
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}
@@ -156,9 +156,9 @@ def followed_sites(
             # /me/followedSites isn't valid in app-only mode; surface
             # a helpful error rather than the raw Graph 400.
             raise RuntimeError(
-                "sp_followed_sites is not available in service-principal "
+                "sp_site_followed_list is not available in service-principal "
                 "(app-only) auth mode — there's no signed-in user. Use "
-                "sp_sites() for a tenant-wide view.",
+                "sp_site_list() for a tenant-wide view.",
             )
         response.raise_for_status()
         return _extract_sites(response.json())

@@ -5,16 +5,16 @@
 
 Reads:
 
-- `sp_lists(site_url)` — list all lists on a site
-- `sp_list_columns(list_url)` — schema of a list (column definitions)
-- `sp_list_items(list_url, filter=None, top=100)` — items with optional OData filter
-- `sp_get_item(list_url, item_id)` — single item with all fields
+- `sp_list_list(site_url)` — list all lists on a site
+- `sp_list_column_list(list_url)` — schema of a list (column definitions)
+- `sp_list_item_list(list_url, filter=None, top=100)` — items with optional OData filter
+- `sp_list_item_get(list_url, item_id)` — single item with all fields
 
 Writes (gated by SP_ALLOW_WRITES at the server layer):
 
-- `sp_create_item(list_url, fields)` — create a list item
-- `sp_update_item(list_url, item_id, fields)` — patch fields
-- `sp_delete_item(list_url, item_id)` — delete
+- `sp_list_item_create(list_url, fields)` — create a list item
+- `sp_list_item_update(list_url, item_id, fields)` — patch fields
+- `sp_list_item_delete(list_url, item_id)` — delete
 
 URL conventions:
 
@@ -121,11 +121,11 @@ def lists(
     template (e.g. "documentLibrary", "genericList", "tasks").
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_lists requires a non-empty site_url")
+        raise ValueError("sp_list_list requires a non-empty site_url")
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
     if item_path:
         raise ValueError(
-            f"sp_lists expects a site URL, not a file/folder URL "
+            f"sp_list_list expects a site URL, not a file/folder URL "
             f"(got {site_url!r}; item path {item_path!r}).",
         )
 
@@ -224,7 +224,7 @@ def get_item(
 ) -> dict[str, Any]:
     """Fetch a single list item with all expanded fields."""
     if not item_id or not str(item_id).strip():
-        raise ValueError("sp_get_item requires a non-empty item_id")
+        raise ValueError("sp_list_item_get requires a non-empty item_id")
     hostname, site_path, list_name = parse_list_url(list_url)
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}
@@ -257,7 +257,7 @@ def create_item(
 ) -> dict[str, Any]:
     """Create a new list item with the given fields. Returns the new item."""
     if not isinstance(fields, dict) or not fields:
-        raise ValueError("sp_create_item requires a non-empty fields dict")
+        raise ValueError("sp_list_item_create requires a non-empty fields dict")
     hostname, site_path, list_name = parse_list_url(list_url)
     token = get_token(profile)
     headers = {
@@ -294,9 +294,9 @@ def update_item(
     the dict are unchanged.
     """
     if not item_id or not str(item_id).strip():
-        raise ValueError("sp_update_item requires a non-empty item_id")
+        raise ValueError("sp_list_item_update requires a non-empty item_id")
     if not isinstance(fields, dict) or not fields:
-        raise ValueError("sp_update_item requires a non-empty fields dict")
+        raise ValueError("sp_list_item_update requires a non-empty fields dict")
     hostname, site_path, list_name = parse_list_url(list_url)
     token = get_token(profile)
     headers = {
@@ -331,7 +331,7 @@ def delete_item(
     """Delete a list item. Sends it to the site recycle bin (per
     SharePoint's default behaviour for DELETE)."""
     if not item_id or not str(item_id).strip():
-        raise ValueError("sp_delete_item requires a non-empty item_id")
+        raise ValueError("sp_list_item_delete requires a non-empty item_id")
     hostname, site_path, list_name = parse_list_url(list_url)
     token = get_token(profile)
     headers = {"Authorization": f"Bearer {token}"}

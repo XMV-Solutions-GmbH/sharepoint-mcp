@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_file_history + sp_get_file_version against the real harness sandbox.
+"""Harness tests for sp_drive_file_history + sp_drive_file_version_get.
 
 The seed README.md has accumulated versions through prior harness
 lifecycle tests (each `test_open_modify_save_creates_new_version` run

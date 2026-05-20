@@ -4,8 +4,8 @@
 """Best-effort cleanup helper for harness tests that acquire checkouts.
 
 Avoids leaving the sandbox in a "checked out by d.koller" state after
-a test fails or times out. Used by sp_open_file's harness tests until
-sp_release_file exists, then by lifecycle tests as a defensive guard.
+a test fails or times out. Used by sp_drive_file_checkout's harness tests until
+sp_drive_file_checkout_discard exists, then by lifecycle tests as a defensive guard.
 """
 
 from __future__ import annotations

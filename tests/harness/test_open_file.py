@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_open_file against the harness sandbox.
+"""Harness tests for sp_drive_file_checkout against the harness sandbox.
 
 Each test registers cleanup that releases any checkout it acquired,
 even on failure, so the sandbox doesn't accumulate stale locks
@@ -41,8 +41,8 @@ def cleanup_checkouts() -> Iterator[None]:
 
 
 def test_sp_open_acquires_lock_and_downloads(cleanup_checkouts: None) -> None:
-    """sp_open_file against the seed README: lock acquired, content downloaded,
-    registry entry created with all the IDs and ETag we'll need for sp_save_file.
+    """sp_drive_file_checkout against the seed README: lock acquired, content downloaded,
+    registry entry created with all the IDs and ETag we'll need for sp_drive_file_checkin.
     """
     del cleanup_checkouts
     _skip_if_no_harness()
@@ -60,7 +60,7 @@ def test_sp_open_acquires_lock_and_downloads(cleanup_checkouts: None) -> None:
     assert entry.site_id, "site_id should be populated"
     assert entry.drive_id, "drive_id should be populated"
     assert entry.item_id, "item_id should be populated"
-    assert entry.etag, "ETag should be populated for stale-write detection in sp_save_file"
+    assert entry.etag, "ETag should be populated for stale-write detection in sp_drive_file_checkin"
     assert Path(entry.local_path) == Path(local_path)
 
 

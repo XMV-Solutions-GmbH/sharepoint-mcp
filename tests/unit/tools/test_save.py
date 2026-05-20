@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_save_file."""
+"""Unit tests for sp_drive_file_checkin."""
 
 from __future__ import annotations
 
@@ -171,7 +171,7 @@ def test_save_412_raises_StaleWriteError(
 
 def test_save_without_prior_open_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sharepoint_mcp.checkout_registry.DEFAULT_REGISTRY_DIR", tmp_path)
-    with pytest.raises(NotCheckedOutError, match="Call sp_open_file first"):
+    with pytest.raises(NotCheckedOutError, match="Call sp_drive_file_checkout first"):
         save(URL, comment="updated", version="minor")
 
 

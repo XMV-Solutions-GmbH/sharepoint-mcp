@@ -3,7 +3,7 @@
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
 """Harness tests for the SharePoint Lists CRUD tools (#44).
 
-For listing tools (sp_lists, sp_list_columns, sp_list_items): we
+For listing tools (sp_list_list, sp_list_column_list, sp_list_item_list): we
 exercise against the harness site directly. The default Documents
 library is exposed via `/sites/{id}/lists` (Graph treats it as a
 list with template="documentLibrary"), so every site has at least

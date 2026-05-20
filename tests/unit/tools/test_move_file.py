@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Unit tests for sp_move_file (issue #95)."""
+"""Unit tests for sp_drive_file_move (issue #95)."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""sp_move_file — move or rename a drive file or folder.
+"""sp_drive_file_move — move or rename a drive file or folder.
 
 Combines two Graph capabilities in a single PATCH call:
 - Reparent: supply a new ``parentReference.id`` to move to a different folder.
@@ -65,19 +65,19 @@ def move_file(
         sharepoint_mcp.auth.AuthRequiredError: no cached token for ``profile``.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_move_file requires a non-empty site_url")
+        raise ValueError("sp_drive_file_move requires a non-empty site_url")
     if not source_path or not source_path.strip():
-        raise ValueError("sp_move_file requires a non-empty source_path")
+        raise ValueError("sp_drive_file_move requires a non-empty source_path")
     if not destination_path or not destination_path.strip():
-        raise ValueError("sp_move_file requires a non-empty destination_path")
+        raise ValueError("sp_drive_file_move requires a non-empty destination_path")
 
     src = source_path.strip().strip("/")
     dst = destination_path.strip().strip("/")
 
     if not src:
-        raise ValueError("sp_move_file: source_path contains no path segments")
+        raise ValueError("sp_drive_file_move: source_path contains no path segments")
     if not dst:
-        raise ValueError("sp_move_file: destination_path contains no path segments")
+        raise ValueError("sp_drive_file_move: destination_path contains no path segments")
 
     hostname, site_path, _ = parse_sharepoint_url(site_url)
     token = get_token(profile)

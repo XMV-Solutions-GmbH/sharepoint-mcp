@@ -7,8 +7,8 @@ Two read-only tools for the canonical wiki/knowledge-base format on
 SharePoint Online (modern site pages — distinct from documents in
 libraries):
 
-- `sp_pages_list(site_url)` — list pages on a site
-- `sp_page_read(page_url)` — fetch a page including canvas layout
+- `sp_site_page_list(site_url)` — list pages on a site
+- `sp_site_page_read(page_url)` — fetch a page including canvas layout
 
 URL convention: page URLs follow SharePoint's canonical form
 `https://<host>/sites/<name>/SitePages/<filename>.aspx`. We parse
@@ -17,7 +17,7 @@ the trailing `.aspx` filename and look the page up via Graph's
 {id}` requires a GUID, not the name).
 
 Canvas layout shape: Microsoft Graph exposes the page's web-parts
-via `canvasLayout` (sections > columns > webParts). `sp_page_read`
+via `canvasLayout` (sections > columns > webParts). `sp_site_page_read`
 returns the canvas as raw JSON for lossless inspection. Writing
 pages back is intentionally out of scope: a metadata-only write
 would be a half-tool (read full content + canvas, write only title)
@@ -25,7 +25,7 @@ that misleads agents into reaching for it expecting full edits, and
 canvas writes need a clearer agent UX before they're safe. Today
 modern Pages have to be edited via the SharePoint web UI.
 
-Item shape (sp_pages_list, sp_page_read):
+Item shape (sp_site_page_list, sp_site_page_read):
 
     {
         "id": "<sitePage GUID>",
@@ -37,7 +37,7 @@ Item shape (sp_pages_list, sp_page_read):
         "thumbnail_web_url": "<image URL or empty>",
         "last_modified": "<ISO datetime>",
         "last_modified_by": "<display name or empty>",
-        # sp_page_read only:
+        # sp_site_page_read only:
         "canvas_layout": {<raw Graph canvasLayout JSON>},
     }
 """
@@ -118,11 +118,11 @@ def pages_list(
     page_layout, thumbnail_web_url, last_modified, last_modified_by.
     """
     if not site_url or not site_url.strip():
-        raise ValueError("sp_pages_list requires a non-empty site_url")
+        raise ValueError("sp_site_page_list requires a non-empty site_url")
     hostname, site_path, item_path = parse_sharepoint_url(site_url)
     if item_path:
         raise ValueError(
-            f"sp_pages_list expects a site URL, not a file/folder URL "
+            f"sp_site_page_list expects a site URL, not a file/folder URL "
             f"(got {site_url!r}; item path {item_path!r}).",
         )
 
@@ -152,7 +152,7 @@ def page_read(
     so we filter the list). Then expands canvasLayout for lossless
     web-part inspection.
 
-    Returns the same shape as `sp_pages_list` plus `canvas_layout`
+    Returns the same shape as `sp_site_page_list` plus `canvas_layout`
     (the raw Graph JSON for sections / columns / web-parts).
     """
     hostname, site_path, page_name = parse_page_url(page_url)
@@ -180,7 +180,7 @@ def page_read(
 
 
 class PageNotFoundError(RuntimeError):
-    """Raised when sp_page_read can't find a page by name.
+    """Raised when sp_site_page_read can't find a page by name.
 
     Different from a 404 — the list query succeeds but the response
     contains no matching page. Surfaced as a distinct exception so

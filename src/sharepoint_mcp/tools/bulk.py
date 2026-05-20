@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Bulk variants of sp_open_file and sp_save_file (closes #41).
+"""Bulk variants of sp_drive_file_checkout and sp_drive_file_checkin (closes #41).
 
 Use case: agent edits 20 policy documents that all need the same
 header update; doing it one at a time is 60 round-trips. The bulk
@@ -43,10 +43,10 @@ MAX_RETRY_WAIT_SECONDS = 30
 
 
 class SaveOperation(TypedDict, total=False):
-    """One save in a sp_save_files batch.
+    """One save in a sp_drive_file_checkin_bulk batch.
 
     `version` is optional and defaults to "minor" — same default as
-    sp_save_file's single-call form. `comment` is required by sp_save_file.
+    sp_drive_file_checkin's single-call form. `comment` is required by sp_drive_file_checkin.
     """
 
     url: str
@@ -61,7 +61,7 @@ def open_many(
     concurrency: int = DEFAULT_CONCURRENCY,
     sleep: Callable[[float], None] = time.sleep,
 ) -> list[dict[str, Any]]:
-    """Bulk variant of sp_open_file. See module docstring for semantics.
+    """Bulk variant of sp_drive_file_checkout. See module docstring for semantics.
 
     Returns one result per input url, in the original order. Each result
     is `{"path": <input url>, "status": "ok", "local_path": <str>}`
@@ -94,12 +94,12 @@ def save_many(
     concurrency: int = DEFAULT_CONCURRENCY,
     sleep: Callable[[float], None] = time.sleep,
 ) -> list[dict[str, Any]]:
-    """Bulk variant of sp_save_file. See module docstring for semantics.
+    """Bulk variant of sp_drive_file_checkin. See module docstring for semantics.
 
     Each `operations` entry: `{"url": str, "comment": str, "version"?: "minor"|"major"}`.
 
     Returns one result per input op, in the original order. Each result
-    is the sp_save_file dict (`version_id`, `etag`, `web_url`) merged with
+    is the sp_drive_file_checkin dict (`version_id`, `etag`, `web_url`) merged with
     `path` + `status="ok"`, or `{path, status="error", error}` on failure.
 
     Empty `operations` returns an empty list without any work.

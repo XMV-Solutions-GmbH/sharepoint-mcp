@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_upload_new_file against the real harness sandbox."""
+"""Harness tests for sp_drive_file_upload against the real harness sandbox."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ def test_publish_refuses_to_overwrite_existing_file(
 
     # Second publish with same name: refused
     src.write_text("second version (should never land)", encoding="utf-8")
-    with pytest.raises(FileExistsError, match="Use sp_open_file"):
+    with pytest.raises(FileExistsError, match="Use sp_drive_file_checkout"):
         publish(str(src), HARNESS_DRAFTS_URL, profile=HARNESS_PROFILE)
 
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_status verify=True against the real harness sandbox.
+"""Harness tests for sp_drive_checkout_list verify=True against the real harness sandbox.
 
 Validates the server-side reconciliation path: open a file, ask
 SharePoint whether it's locked, get back True; release, get back to
@@ -58,7 +58,7 @@ def test_status_verify_reports_server_locked_after_open(clean_registry: None) ->
         # Either definitively locked, or "unknown" if SharePoint
         # surfaces a transient quirk; we will not accept False.
         assert entry["server_locked"] in (True, None), (
-            f"Expected lock to be visible to SharePoint after sp_open_file, "
+            f"Expected lock to be visible to SharePoint after sp_drive_file_checkout, "
             f"got server_locked={entry['server_locked']!r}, "
             f"lock_holder={entry.get('lock_holder')!r}"
         )

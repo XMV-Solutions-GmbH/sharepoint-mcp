@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 # SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
 # SPDX-FileContributor: David Koller <david.koller@xmv.de>
-"""Harness tests for sp_file_metadata against the harness sandbox.
+"""Harness tests for sp_drive_file_metadata against the harness sandbox.
 
 Skipped when no harness credentials are present.
 """

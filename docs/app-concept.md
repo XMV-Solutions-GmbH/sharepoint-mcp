@@ -41,38 +41,149 @@ The Microsoft Graph API exposes a clean **checkout / edit / checkin** model. Thi
 
 ## Tools exposed (MCP surface)
 
-```text
-sp_search(query, site?, folder?, file_type?, modified_after?)
-    → list of (path, web_url, last_modified, author)
+Tool names follow the pattern `sp_<category>_<noun>_<verb>`. The category — the first segment after `sp_` — encodes which SharePoint entity the tool operates on, so an LLM can pick the right tool from the name alone without reading every docstring. Six categories:
 
-sp_list_folder(path)
-    → folder listing with type/size/modified for each child
+| Category | Scope |
+|---|---|
+| `sp_auth_*` | Login lifecycle (Device Code flow state) |
+| `sp_site_*` | Site / library / page / recycle-bin discovery |
+| `sp_drive_*` | Files and folders in document libraries (the main surface) |
+| `sp_list_*` | SharePoint Lists — schema + item CRUD |
+| `sp_share_*` | Sharing links and permission grants |
+| `sp_search_*` | Cross-cutting search (today: driveItem-only; entity scope may grow) |
 
-sp_read(path)
-    → downloads to a temp location, returns local path; no checkout, read-only
+The full tool list is grouped below by category. Every tool maps to one or two Microsoft Graph calls; no clever caching beyond what Graph already provides.
 
-sp_open(path)
-    → checkout + download to working directory; returns local path
-    → fails if file is already checked out by someone else
+### `sp_auth_*` — always registered
 
-sp_save(path, comment, version="minor"|"major")
-    → upload + checkin with comment; returns new versionId
-    → ETag-check; fails if file changed under us
+- `sp_auth_begin(profile)` → start Device Code flow, returns user code + verification URL.
+- `sp_auth_status(profile)` → `{signed_in | pending | none}`.
 
-sp_release(path)
-    → discardCheckout; drops local working copy
+### `sp_site_*` — site / library discovery
 
-sp_status()
-    → list of currently checked-out files (path, since, local_path)
+- `sp_site_list()` → sites the user has access to.
+- `sp_site_followed_list()` → sites the user has followed.
+- `sp_site_drive_list(site_url)` → document libraries on a site.
+- `sp_site_page_list(site_url)` → modern SharePoint Pages on a site.
+- `sp_site_page_read(page_url)` → page content + canvasLayout as JSON.
+- `sp_site_trash_list(site_url)` → recycle-bin items for the site.
 
-sp_history(path, limit=20)
-    → list of versions with id, modified, author, comment
+### `sp_drive_*` — files & folders
 
-sp_get_version(path, version_id)
-    → fetch a specific historical version (read-only)
+Read:
+
+- `sp_drive_folder_list(url)` → immediate children of a folder.
+- `sp_drive_file_read(url)` → download to a local temp path, return that path. **No base64.**
+- `sp_drive_file_history(url)` → version history of a file.
+- `sp_drive_file_version_get(url, version_id)` → download a specific historical version to a temp path.
+- `sp_drive_change_track(drive_url, cursor?)` → delta query (created/modified/deleted since cursor).
+- `sp_drive_checkout_list()` → currently checked-out files with local working copies (was `sp_status`).
+
+Write (gated by `SP_ALLOW_WRITES=true`):
+
+- `sp_drive_folder_create(parent_url, path)` → recursively create folder hierarchy (multi-segment paths supported).
+- `sp_drive_file_upload(folder_url, local_path)` → publish a new file; recursively creates missing parent folders; refuses if target name already exists.
+- `sp_drive_file_delete(url)` → soft-delete (goes to site recycle bin).
+- `sp_drive_file_move(url, new_path)` → move or rename within a library.
+- `sp_drive_file_copy(url, new_path)` → server-side copy.
+- `sp_drive_file_metadata(url, fields=None)` → read or PATCH the custom-column values on a file.
+- `sp_drive_file_checkout(url)` → acquire lock, download local working copy.
+- `sp_drive_file_checkin(url, comment, version)` → upload working copy, checkin with audit comment, release lock; ETag-checked.
+- `sp_drive_file_checkout_discard(url)` → drop checkout without saving.
+- `sp_drive_file_checkout_bulk(urls)` → parallel checkout (up to 4 concurrent Graph calls).
+- `sp_drive_file_checkin_bulk(specs)` → parallel checkin.
+
+### `sp_list_*` — SharePoint Lists
+
+Read:
+
+- `sp_list_list(site_url)` → all Lists on a site.
+- `sp_list_column_list(list_url)` → column schema.
+- `sp_list_item_list(list_url)` → items with expanded fields.
+- `sp_list_item_get(list_url, item_id)`.
+
+Write (gated by `SP_ALLOW_WRITES=true`):
+
+- `sp_list_item_create(list_url, fields)`.
+- `sp_list_item_update(list_url, item_id, fields)`.
+- `sp_list_item_delete(list_url, item_id)` → goes to site recycle bin.
+
+### `sp_share_*` — sharing links & permissions
+
+Read:
+
+- `sp_share_link_list(url)` → sharing-link permissions on a file/folder.
+- `sp_share_permission_list(url)` → all access grants (direct + inherited + sharing links).
+
+Write (gated by `SP_ALLOW_WRITES=true`):
+
+- `sp_share_link_create(url, link_type, scope)` → create view/edit link, anonymous or organization-scoped.
+- `sp_share_link_revoke(url, permission_id)`.
+
+### `sp_search_*`
+
+- `sp_search_query(query, site?, folder?, file_type?, modified_after?)` → KQL-backed search. Today this hits Graph's `/search/query` with `entityTypes: ["driveItem"]` only — i.e. files. The category is kept separate so additional entity types (listItem, site) can be added later without renaming.
+
+---
+
+## Tool design principles
+
+These are project-wide invariants that bind every existing tool and every future one. Violating them is a release blocker.
+
+### 1. Nomenclature is load-bearing
+
+The first segment after `sp_` is always one of `{auth, site, drive, list, share, search}` and describes the category from the table above. The remaining segments encode noun(s) then verb. Examples:
+
+- `sp_drive_file_read` — category `drive`, noun `file`, verb `read`.
+- `sp_drive_folder_create` — category `drive`, noun `folder`, verb `create`.
+- `sp_list_item_delete` — category `list`, noun `item`, verb `delete`.
+- `sp_search_query` — category `search`, verb `query` (no separate noun: the category *is* the entity).
+
+LLMs pick tools by name when there's a long catalog (30+ tools) and limited context budget. A name that wraps category + entity + action collapses the disambiguation step.
+
+### 2. No base64 on the tool surface — ever
+
+Tools never accept base64-encoded content as a parameter and never return it as a value. Production use revealed that even Claude-class models lose `=` padding under realistic copy-paste-through-JSON conditions; the failure mode is silent corruption, not a clean error.
+
+Binary content is exchanged via **local filesystem paths**: an upload tool reads from a path the LLM provides, a download tool writes to a path it returns. The LLM consumes the file using whatever filesystem tools it already has. This pattern works for images, PDFs, DOCX, OneNote — anything.
+
+There is no exception to this rule. Tools that previously returned base64 (e.g. the removed `sp_download_binary` in v0.6.x) have been replaced by the temp-file pattern (`sp_drive_file_read`).
+
+### 3. Recursive parent creation is uniform
+
+Any tool that writes to a path (`sp_drive_folder_create`, `sp_drive_file_upload`, `sp_drive_file_checkin` on a path that doesn't yet exist) recursively creates missing parent folders. There is no "creates one level only" tool — the behaviour is the same everywhere and is documented in the tool's docstring.
+
+### 4. Tool groups are configurable at startup via `SP_TOOL_GROUPS`
+
+Consumers can restrict which categories register by setting `SP_TOOL_GROUPS` to a comma-separated subset of the six categories. Default (unset) = all. `auth` is always registered regardless of filter because it's needed to bootstrap any other call.
+
+```jsonc
+// .mcp.json — a project that only touches files, not Lists
+{
+  "mcpServers": {
+    "sharepoint": {
+      "command": "uvx",
+      "args": ["mcp-server-sharepoint"],
+      "env": {
+        "SP_TOOL_GROUPS": "drive,search,site",
+        "SP_ALLOW_WRITES": "true"
+      }
+    }
+  }
+}
 ```
 
-Every tool maps to one or two Microsoft Graph calls. No clever caching beyond what Graph already provides.
+Unknown group names cause a loud startup error (non-zero exit), not silent skip. Orthogonal to `SP_ALLOW_WRITES` — group selection decides *which* tools are visible; the writes flag decides whether the mutating subset within each group is registered.
+
+### 5. Startup banner advertises version and config
+
+On startup, the server emits one stderr line:
+
+```
+mcp-server-sharepoint 0.7.0 — groups=[drive,list,site,search,share,auth] writes=true
+```
+
+Callers can verify which version and configuration is actually running without round-tripping through the MCP protocol.
 
 ---
 
@@ -229,11 +340,30 @@ How our internal modules fit together. Mocks **at the system boundary** are acce
 - **Initial setup**: the human admin (David) walks the test account through a one-time Device Code login on the agent's working machine. The resulting refresh token is cached in the agent's OS keyring under profile `harness`. The same refresh token is also stored as a GitHub Actions secret for CI.
 - **What's covered**:
   - End-to-end auth: Device Code → keyring → refresh-token-loop survives a fresh process start.
-  - Each tool (`sp_search`, `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_release`, `sp_status`) hit at least once against the live API.
-  - Lock semantics: `sp_open` of an already-checked-out file fails with the right error; concurrent `sp_open` attempts are exclusive.
+  - Each tool hit at least once against the live API.
+  - Lock semantics: checkout of an already-checked-out file fails with the right error; concurrent checkout attempts are exclusive.
   - ETag stale-write detection: edit-and-save after another process has changed the same file → fails as expected.
   - Audit-log attribution: the test-account user appears as actor in the SharePoint audit log for each write.
 - **Run sites**: from the agent's working machine on every iteration; from CI on every PR (using the secret-stored refresh token).
+
+### Behavioural harness (`tests/harness/behavioural/`) — does an LLM pick the right tool?
+
+The pytest harness above verifies that each tool works against the real Graph API in isolation. It does **not** verify that an LLM-driven agent, faced with a realistic task and the full 36-tool catalog, picks the right tools in the right order.
+
+The behavioural harness closes that gap. It spawns a cloud Claude agent, points it at this MCP server with the harness sandbox's refresh token, and gives it scripted user tasks like:
+
+- "Create folders `Rituals/sprint-planning` and `Rituals/retros`. Upload the README from `/tmp/in/` into both. Then rename `old-README.md` in the root to `archived-README.md` and move it into `Rituals/archive/`."
+- "Find every `.docx` modified in the last 30 days under the `Compliance/` library, then add the metadata column `Reviewed=true` to each."
+- "Reorganise the directory layout from old layout X to new layout Y: 11 deletions, 6 uploads, 7 renames."
+
+The harness scores each run on:
+
+- **Tool-selection accuracy**: did the agent pick `sp_drive_file_move` (good) or `sp_drive_file_upload` + `sp_drive_file_delete` (bad — loses version history) when the task was a rename?
+- **Step count**: did the agent solve it in the minimum number of Graph calls, or did it loop?
+- **Successful completion**: did the final state match the expected state in SharePoint?
+- **Confusion incidents**: did the agent ever try a tool that doesn't exist, hit an explicit "wrong category" name error, or get stuck?
+
+This is the test layer that catches problems like "the agent picked `sp_upload_new_file` when the task was to edit an existing file" — the exact failure mode that motivated the v0.7.0 restructuring. Run before every breaking release.
 
 ### Test-environment hierarchy
 
@@ -254,22 +384,24 @@ There is no "staging" environment in the cluster sense — the harness sandbox *
 
 ---
 
-## MVP scope (v0.1)
+## Release scope (current: v0.7.0)
 
-- Tools: `sp_search`, `sp_list`, `sp_read`, `sp_open`, `sp_save`, `sp_release`, `sp_status`.
-- Single-tenant focused; multi-tenant via launching multiple processes (no in-process tenant switching).
-- Device code auth, keyring token cache.
-- Python 3.11+, packaged for `uvx`/`pipx` install.
-- Test layers: unit + integration locally and in CI; **harness tests against the dedicated XMV sandbox site** with a least-privilege test user (see Testability section above).
+v0.1 shipped the seven-tool MVP (search, list, read, checkout, checkin, release, status). Releases through v0.6.x added Lists, Pages, sharing, bulk operations, metadata, recycle-bin discovery, and delete/move/copy on drive items. v0.7.0 restructured the entire surface around the `sp_<category>_<noun>_<verb>` nomenclature and added the `SP_TOOL_GROUPS` filter; see [CHANGELOG.md](../CHANGELOG.md) for the per-release diff.
+
+Always-true invariants:
+
+- Python 3.11+, packaged for `uvx` / `pipx` install.
+- Single-tenant per process; multi-tenant via `SP_PROFILE` and multiple `mcpServers` entries.
+- Device Code auth, three-tier token store (keyring → plain file → encrypted file).
 - Read-only by default; writes opt-in via `SP_ALLOW_WRITES=true`.
+- Test layers: unit + integration in CI on every PR; harness against the XMV sandbox in CI nightly + on every release tag; behavioural harness against a cloud agent before every breaking release.
+- Tool design principles from §Tool design principles above bind every release.
 
-Deferred to v0.2:
+Still deferred:
 
-- `sp_history`, `sp_get_version`.
-- `sp_publish` (upload a new file from local) — covers the "draft + promote" use case from § Core use cases. Not in v0.1 because it is independent of the checkout/checkin chain that v0.1 focuses on.
-- Service-principal auth.
-- Bulk operations (`sp_save_many`).
-- OneNote / Excel-cell-level tools (likely separate MCPs).
+- Service-principal (client-credentials) auth — interactive Device Code remains the supported path; unattended-automation is out of scope until a real use case demands it.
+- OneNote and Excel-cell-level tools — too different from the file-and-list model. Likely separate sibling MCPs if pursued.
+- Resumable upload sessions for files >250 MB — single-shot `PUT /content` covers everything up to the current SharePoint cap.
 
 ---
 

@@ -221,7 +221,7 @@ def resolve_drive_item_by_share_url(
     base64 alphabet are not used (urlsafe variant uses `-` and `_`).
 
     Fixes [#79](https://github.com/XMV-Solutions-GmbH/sharepoint-mcp/issues/79):
-    `sp_list_folder` / `sp_read_file` no longer 404 on localized library names.
+    `sp_drive_folder_list` / `sp_drive_file_read` no longer 404 on localized library names.
     """
     encoded = base64.urlsafe_b64encode(web_url.encode("utf-8")).rstrip(b"=").decode("ascii")
     share_id = f"u!{encoded}"
@@ -265,7 +265,7 @@ def list_site_drives(
     *,
     headers: dict[str, str],
 ) -> list[dict[str, Any]]:
-    """List all drives (libraries) on a site. Used by sp_drives."""
+    """List all drives (libraries) on a site. Used by sp_site_drive_list."""
     response = client.get(f"{GRAPH_BASE}/sites/{site_id}/drives", headers=headers)
     response.raise_for_status()
     raw = response.json().get("value", [])
