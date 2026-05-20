@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
+# SPDX-FileContributor: David Koller <david.koller@xmv.de>
+#
+# Fixture for the anqer-reorg behavioural scenario.
+# Pairs with anqer-reorg.md (the prompt + scoring criteria).
+#
+# Convention: all paths are drive-relative to the harness site's
+# default document library (Shared Documents). The runner prefixes
+# them with site_url + "Shared Documents/" when calling Graph.
+
+site_url: https://xmvsolutions.sharepoint.com/sites/sharepoint-mcp-harness
+
+# All seed/cleanup operations are scoped to this subtree of the
+# default library. The runner deletes the whole subtree on cleanup
+# so a partial agent run can't poison subsequent scenarios.
+scratch_root: scratch
+
+# Local files the runner places on disk before invoking the agent.
+# Path → content. The agent's prompt references these paths.
+local_files:
+  /tmp/in/seed-sprint.md: |
+    # Sprint seed
+
+    Standing topics:
+    - Goals
+    - Risks
+    - Carry-over
+
+# Tree to seed in the sandbox before the agent runs. The runner
+# creates these via direct sp_drive_file_upload calls (which already
+# create missing parents recursively).
+#
+# Paths are relative to <site>/Shared Documents/<scratch_root>/.
+initial_state:
+  files:
+    - path: old-README.md
+      content: |
+        v1 readme — needs to be archived
+    - path: obsolete-1.md
+      content: delete-me-1
+    - path: obsolete-2.md
+      content: delete-me-2
+    - path: obsolete-3.md
+      content: delete-me-3
+
+# State the runner verifies after the agent finishes. `present` paths
+# must exist (content match optional); `absent` paths must not exist.
+expected_final_state:
+  present:
+    - path: Rituals/sprint-planning/seed-sprint.md
+    - path: Rituals/retros/seed-sprint.md
+    - path: Rituals/archive/archived-README.md
+      content_contains: v1 readme
+  absent:
+    - path: old-README.md
+    - path: obsolete-1.md
+    - path: obsolete-2.md
+    - path: obsolete-3.md
+
+# Scoring — see anqer-reorg.md § Expected tool sequence for the why.
+expected_tools_at_least_once:
+  - sp_drive_folder_create
+  - sp_drive_file_move
+  - sp_drive_file_upload
+  - sp_drive_file_delete
+
+# Hard fail: these tool names appearing in the transcript indicates a
+# category mismatch (List-vs-drive) that the v0.7.0 rename was designed
+# to prevent. Should never appear for this scenario.
+prohibited_tools:
+  - sp_list_item_delete  # this is a drive task, not a Lists task
+  - sp_download_binary   # removed in v0.7.0; presence = stale install
+
+# Soft cap on total Graph-tool calls. Significantly above this = retry
+# loop or tool-selection confusion. The minimum is around 9 (one
+# folder_create, one move, two uploads, three deletes, one folder_list,
+# plus a few reads); allow generous headroom for read-before-write
+# patterns.
+max_tool_calls: 25
