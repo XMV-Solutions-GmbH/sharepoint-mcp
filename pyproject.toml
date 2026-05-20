@@ -133,3 +133,9 @@ exclude_lines = [
 ]
 show_missing = true
 skip_covered = false
+
+[dependency-groups]
+dev = [
+    "pyyaml>=6.0.3",
+    "types-pyyaml>=6.0.12.20260518",
+]
