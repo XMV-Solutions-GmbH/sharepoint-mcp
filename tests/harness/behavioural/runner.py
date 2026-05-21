@@ -78,6 +78,17 @@ class Scenario:
     expected_tools_at_least_once: list[str]
     prohibited_tools: list[str]
     max_tool_calls: int
+    # Text-content scoring (used by auth-UX-style scenarios where the
+    # observable isn't "what file ended up in the sandbox" but "how did the
+    # agent format its reply to the user"). Each entry is a regex matched
+    # against the concatenated assistant-text content blocks from the
+    # transcript. `must_match` → hard fail if missing; `must_not_match` →
+    # hard fail if present.
+    assistant_text_must_match: list[str]
+    assistant_text_must_not_match: list[str]
+    # When True, skip the sandbox seed/cleanup/state-verify path entirely.
+    # For scenarios where the test is purely about agent narration shape.
+    skip_sandbox: bool
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,6 +100,8 @@ class ScoreResult:
     expected_missing: list[str]
     prohibited_called: list[str]
     final_state_diff: list[str]
+    text_missing_patterns: list[str]
+    text_forbidden_patterns: list[str]
     notes: list[str]
 
 
@@ -125,14 +138,17 @@ def load_scenario(scenario_dir: Path, name: str) -> Scenario:
     return Scenario(
         name=name,
         prompt=prompt,
-        site_url=str(fixture["site_url"]),
-        scratch_root=str(fixture["scratch_root"]),
+        site_url=str(fixture.get("site_url") or ""),
+        scratch_root=str(fixture.get("scratch_root") or ""),
         local_files={str(k): str(v) for k, v in (fixture.get("local_files") or {}).items()},
         initial_state=fixture.get("initial_state") or {},
         expected_final_state=fixture.get("expected_final_state") or {},
         expected_tools_at_least_once=list(fixture.get("expected_tools_at_least_once") or []),
         prohibited_tools=list(fixture.get("prohibited_tools") or []),
         max_tool_calls=int(fixture.get("max_tool_calls") or 50),
+        assistant_text_must_match=list(fixture.get("assistant_text_must_match") or []),
+        assistant_text_must_not_match=list(fixture.get("assistant_text_must_not_match") or []),
+        skip_sandbox=bool(fixture.get("skip_sandbox") or False),
     )
 
 
@@ -185,6 +201,33 @@ def parse_tool_calls(stream_json_lines: Iterable[str]) -> list[str]:
             if name.startswith("sp_"):
                 calls.append(name)
     return calls
+
+
+def parse_assistant_text(stream_json_lines: Iterable[str]) -> str:
+    """Concatenate every assistant-text content block from the transcript.
+
+    Used by text-shape scoring: did the agent emit a fenced code block?
+    A bare URL? The whole stream is joined into one string so multi-message
+    replies still get matched against the patterns as a unit.
+    """
+    chunks: list[str] = []
+    for raw_line in stream_json_lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "assistant":
+            continue
+        content = event.get("message", {}).get("content") or []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                chunks.append(str(block.get("text") or ""))
+    return "\n".join(chunks)
 
 
 # ── seeding + cleanup ─────────────────────────────────────────────────────
@@ -295,11 +338,23 @@ def score(
     tool_calls: list[str],
     final_state_diff: list[str],
     scenario: Scenario,
+    *,
+    assistant_text: str = "",
 ) -> ScoreResult:
-    """Apply pass/fail rules to the observed tool-use sequence + sandbox state."""
+    """Apply pass/fail rules to the observed tool-use sequence, sandbox state,
+    and (optionally) the agent's narration."""
     called = set(tool_calls)
     expected_missing = [t for t in scenario.expected_tools_at_least_once if t not in called]
     prohibited_called = [t for t in scenario.prohibited_tools if t in called]
+
+    text_missing_patterns: list[str] = []
+    text_forbidden_patterns: list[str] = []
+    for pattern in scenario.assistant_text_must_match:
+        if not re.search(pattern, assistant_text, re.MULTILINE | re.DOTALL):
+            text_missing_patterns.append(pattern)
+    for pattern in scenario.assistant_text_must_not_match:
+        if re.search(pattern, assistant_text, re.MULTILINE | re.DOTALL):
+            text_forbidden_patterns.append(pattern)
 
     notes: list[str] = []
     if len(tool_calls) > scenario.max_tool_calls:
@@ -308,7 +363,13 @@ def score(
             "(likely retry loop or tool-selection confusion)"
         )
 
-    passed = not expected_missing and not prohibited_called and not final_state_diff
+    passed = (
+        not expected_missing
+        and not prohibited_called
+        and not final_state_diff
+        and not text_missing_patterns
+        and not text_forbidden_patterns
+    )
 
     return ScoreResult(
         passed=passed,
@@ -316,6 +377,8 @@ def score(
         expected_missing=expected_missing,
         prohibited_called=prohibited_called,
         final_state_diff=final_state_diff,
+        text_missing_patterns=text_missing_patterns,
+        text_forbidden_patterns=text_forbidden_patterns,
         notes=notes,
     )
 
@@ -435,7 +498,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[harness] site: {scenario.site_url}", file=sys.stderr)
     print(f"[harness] scratch root: {scenario.scratch_root}", file=sys.stderr)
 
-    if not args.skip_seed:
+    if not args.skip_seed and not scenario.skip_sandbox:
         print("[harness] seeding sandbox …", file=sys.stderr)
         seed_sandbox(scenario, profile=args.profile)
 
@@ -448,12 +511,13 @@ def main(argv: list[str] | None = None) -> int:
         print("[harness] running claude --print …", file=sys.stderr)
         lines = run_claude(scenario.prompt, mcp_config=mcp_config)
         tool_calls = parse_tool_calls(lines)
+        assistant_text = parse_assistant_text(lines)
         print(f"[harness] observed {len(tool_calls)} sp_* tool calls", file=sys.stderr)
 
-        diff = verify_final_state(scenario, profile=args.profile)
-        result = score(tool_calls, diff, scenario)
+        diff = [] if scenario.skip_sandbox else verify_final_state(scenario, profile=args.profile)
+        result = score(tool_calls, diff, scenario, assistant_text=assistant_text)
     finally:
-        if not args.skip_cleanup:
+        if not args.skip_cleanup and not scenario.skip_sandbox:
             print("[harness] cleaning up …", file=sys.stderr)
             cleanup_sandbox(scenario, profile=args.profile)
         try:
@@ -475,6 +539,14 @@ def main(argv: list[str] | None = None) -> int:
         print("final-state diff:")
         for line in result.final_state_diff:
             print(f"  - {line}")
+    if result.text_missing_patterns:
+        print("assistant text — required patterns missing:")
+        for pattern in result.text_missing_patterns:
+            print(f"  - {pattern}")
+    if result.text_forbidden_patterns:
+        print("assistant text — forbidden patterns matched:")
+        for pattern in result.text_forbidden_patterns:
+            print(f"  - {pattern}")
     if result.notes:
         print("notes:")
         for note in result.notes:

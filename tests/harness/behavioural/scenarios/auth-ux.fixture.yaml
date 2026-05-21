@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# SPDX-FileCopyrightText: 2026 XMV Solutions GmbH
+# SPDX-FileContributor: David Koller <david.koller@xmv.de>
+#
+# Fixture for auth-ux. Pairs with auth-ux.md.
+#
+# Tests pure agent narration — no sandbox seeding, no final-state walk.
+# We deliberately don't complete the device-code flow; the only observable
+# is the assistant text in the transcript.
+
+# `skip_sandbox: true` tells the runner to bypass seed_sandbox + cleanup +
+# verify_final_state entirely. site_url / scratch_root left empty.
+skip_sandbox: true
+
+site_url: ""
+scratch_root: ""
+local_files: {}
+initial_state: {}
+expected_final_state: {}
+
+# The agent should call exactly one tool: sp_auth_begin. If it polls
+# sp_auth_status before begin returns, that's a confused agent.
+expected_tools_at_least_once:
+  - sp_auth_begin
+
+prohibited_tools: []
+
+# Generous cap — the bare agent might emit a small chain of status polls
+# before realising it can't complete the flow without human interaction.
+max_tool_calls: 5
+
+# === The actual contract being tested ===
+#
+# These regexes are matched against the concatenated assistant-text content
+# blocks from the stream-json transcript.
+#
+# Why regex on assistant text and not on the tool-call inputs: the agent
+# could render the credentials wrong even if it called sp_auth_begin
+# correctly. The whole AGENT_INSTRUCTIONS mechanism only matters for what
+# the agent says to the human, not what it sends to the tool.
+assistant_text_must_match:
+  # The code, however it's rendered by the agent, must appear inside a
+  # bare fenced code block (no language tag). This is the pattern that
+  # gives chat UIs the one-click copy button.
+  - '```\n[A-Z0-9-]+\n```'
+
+  # The verification URL must appear as a bare URL on its own line
+  # (auto-linkable in chat UIs). The login.microsoftonline.com endpoint
+  # is what Microsoft Identity returns for the v2.0 /devicecode flow.
+  - '(?m)^(?:\s*Sign-in URL:\s*)?https?://[a-zA-Z0-9./-]+'
+
+assistant_text_must_not_match:
+  # No bold-wrapped URL — kills auto-link in most chat UIs.
+  - '\*\*\s*https?://'
+
+  # No markdown link wrapping the URL — also kills auto-link in chat UIs
+  # that already handle bare URLs.
+  - '\]\(https?://[a-zA-Z0-9./-]+\)'

@@ -176,6 +176,9 @@ def _scenario(
     expected: list[str] | None = None,
     prohibited: list[str] | None = None,
     max_calls: int = 25,
+    text_must_match: list[str] | None = None,
+    text_must_not_match: list[str] | None = None,
+    skip_sandbox: bool = False,
 ) -> Scenario:
     return Scenario(
         name="t",
@@ -188,6 +191,9 @@ def _scenario(
         expected_tools_at_least_once=expected or [],
         prohibited_tools=prohibited or [],
         max_tool_calls=max_calls,
+        assistant_text_must_match=text_must_match or [],
+        assistant_text_must_not_match=text_must_not_match or [],
+        skip_sandbox=skip_sandbox,
     )
 
 
@@ -332,3 +338,97 @@ def test_write_mcp_config_writes_false_when_writes_disabled(tmp_path: Path) -> N
     )
     cfg = json.loads(config_path.read_text())
     assert cfg["mcpServers"]["sharepoint"]["env"]["SP_ALLOW_WRITES"] == "false"
+
+
+# ── parse_assistant_text + text-content scoring ──────────────────────────
+
+
+def _assistant_text_event(text: str) -> str:
+    return json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": text}]},
+        }
+    )
+
+
+def test_parse_assistant_text_concatenates_text_blocks_only() -> None:
+    """Tool_use blocks should be ignored; only `text` blocks contribute."""
+    from tests.harness.behavioural.runner import parse_assistant_text
+
+    lines = [
+        _assistant_text_event("First sentence."),
+        _assistant_event_with_tool("sp_auth_begin"),
+        _assistant_text_event("Second sentence."),
+    ]
+    out = parse_assistant_text(lines)
+    assert "First sentence." in out
+    assert "Second sentence." in out
+    assert "sp_auth_begin" not in out
+
+
+def test_score_passes_when_required_text_pattern_present() -> None:
+    s = _scenario(
+        expected=[],
+        text_must_match=[r"```\nABC-123\n```"],
+        skip_sandbox=True,
+    )
+    result = score(
+        [],
+        [],
+        s,
+        assistant_text="Here you go:\n```\nABC-123\n```\nclick the link",
+    )
+    assert result.passed is True
+
+
+def test_score_fails_when_required_text_pattern_missing() -> None:
+    s = _scenario(text_must_match=[r"```\n[A-Z0-9-]+\n```"], skip_sandbox=True)
+    result = score(
+        [],
+        [],
+        s,
+        assistant_text="The code is ABC-123 — please go to login.microsoft.com",
+    )
+    assert result.passed is False
+    assert any("```" in p for p in result.text_missing_patterns)
+
+
+def test_score_fails_when_forbidden_text_pattern_present() -> None:
+    """Bold-wrapped URL kills auto-link in most chat UIs — forbidden."""
+    s = _scenario(text_must_not_match=[r"\*\*\s*https?://"], skip_sandbox=True)
+    result = score(
+        [],
+        [],
+        s,
+        assistant_text="Go to **https://login.microsoftonline.com** and sign in.",
+    )
+    assert result.passed is False
+    assert result.text_forbidden_patterns == [r"\*\*\s*https?://"]
+
+
+def test_score_text_patterns_use_multiline_and_dotall() -> None:
+    """`(?m)^https?://` should match a URL at the start of a later line — verifies
+    the runner passes MULTILINE/DOTALL to re.search."""
+    s = _scenario(text_must_match=[r"(?m)^https?://"], skip_sandbox=True)
+    result = score(
+        [],
+        [],
+        s,
+        assistant_text="Here's the link:\nhttps://example.com/auth",
+    )
+    assert result.passed is True
+
+
+def test_score_combines_tool_and_text_failures() -> None:
+    """A scenario that misses both the expected tool and a required text
+    pattern reports both reasons — the user can fix in one round."""
+    s = _scenario(
+        expected=["sp_auth_begin"],
+        text_must_match=[r"```"],
+        skip_sandbox=True,
+    )
+    result = score([], [], s, assistant_text="some prose")
+    assert result.passed is False
+    assert result.expected_missing == ["sp_auth_begin"]
+    assert result.text_missing_patterns == [r"```"]
