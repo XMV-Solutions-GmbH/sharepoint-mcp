@@ -514,10 +514,7 @@ def main(argv: list[str] | None = None) -> int:
         assistant_text = parse_assistant_text(lines)
         print(f"[harness] observed {len(tool_calls)} sp_* tool calls", file=sys.stderr)
 
-        diff = (
-            [] if scenario.skip_sandbox
-            else verify_final_state(scenario, profile=args.profile)
-        )
+        diff = [] if scenario.skip_sandbox else verify_final_state(scenario, profile=args.profile)
         result = score(tool_calls, diff, scenario, assistant_text=assistant_text)
     finally:
         if not args.skip_cleanup and not scenario.skip_sandbox:
