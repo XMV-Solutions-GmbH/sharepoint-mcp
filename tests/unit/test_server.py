@@ -129,6 +129,23 @@ def test_register_auth_tools_adds_auth_tools() -> None:
     assert _list_tool_names(server) == {"sp_auth_begin", "sp_auth_status"}
 
 
+def test_auth_tool_descriptions_carry_agent_instructions_marker() -> None:
+    """Both sp_auth_begin and sp_auth_status MUST embed the literal
+    `AGENT_INSTRUCTIONS:` marker — closes #112. The marker is the contract
+    with pattern-matching MCP clients; rephrasing it breaks them."""
+    server = FastMCP("test-auth")
+    register_auth_tools(server)
+    tools = asyncio.run(server.list_tools())
+    for tool in tools:
+        assert tool.description is not None, f"{tool.name} missing description"
+        assert "AGENT_INSTRUCTIONS:" in tool.description, (
+            f"{tool.name} description must include the literal "
+            f"'AGENT_INSTRUCTIONS:' marker; got: {tool.description!r}"
+        )
+        assert "fenced code block" in tool.description
+        assert "markdown link" in tool.description
+
+
 def test_register_site_tools_adds_site_tools() -> None:
     server = FastMCP("test-site")
     register_site_tools(server)
