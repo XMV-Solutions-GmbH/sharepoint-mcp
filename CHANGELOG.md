@@ -106,6 +106,10 @@ unambiguous.
   - § Release scope now describes v0.7.0 instead of the legacy v0.1
     MVP scope.
 
+### Documentation
+
+- README §Authentication now explicitly states that personal Microsoft accounts (outlook.com / hotmail.com / live.com / msn.com) **cannot** use this server — SharePoint is a business-only product. The Entra app's `signInAudience` is deliberately `AzureADMultipleOrgs` so Microsoft blocks consumer logins at the consent screen with a clear error rather than letting users hit 404s on every Graph call. Cross-references the outlook-mcp + microsoft-tasks-mcp sister projects which DO support personal accounts.
+
 ---
 
 ## [Unreleased]

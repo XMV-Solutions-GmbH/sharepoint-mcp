@@ -199,6 +199,8 @@ Restore is **not implemented**. Microsoft Graph doesn't currently expose a `/res
 - **Token storage** is auto-detected at first use: OS keyring (macOS Keychain / Windows Credential Locker / Linux Secret Service) when available, mode-0600 plain JSON file as fallback (same convention as `gh auth`, `aws configure`). Optional encryption with `SP_TOKEN_PASSPHRASE` for paranoid setups or CI.
 - **Multi-customer / multi-tenant**: separate `SP_PROFILE` per tenant, each with its own token cache.
 
+> **Work or school accounts only.** This server requires a Microsoft 365 **work or school** account (Azure AD identity). Personal Microsoft accounts (outlook.com / hotmail.com / live.com / msn.com) **cannot use it** — SharePoint is a business-only product, Microsoft does not expose it to consumer identities at all. Even if a personal account were allowed past the consent screen, every `/sites/...` call would return 404. The XMV-hosted app registration's `signInAudience` is therefore deliberately scoped to `AzureADMultipleOrgs`, which makes Microsoft block the consumer-account login attempt up-front with a clear error message rather than letting users discover the limitation post-sign-in. The sister projects [mcp-server-outlook](https://github.com/XMV-Solutions-GmbH/outlook-mcp) and [mcp-server-microsoft-tasks](https://github.com/XMV-Solutions-GmbH/microsoft-tasks-mcp) DO support personal accounts because Outlook.com mail / calendar and Microsoft To Do exist on the consumer side.
+
 #### Login from an MCP client (recommended for AI-mediated workflows)
 
 The agent can drive sign-in directly via two MCP tools — no terminal shell-out required:
